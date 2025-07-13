@@ -15,6 +15,8 @@ bool useOrientTowards;
 Vector3D dockingPosition;
 Vector3D miningPosition;
 float safeUpPercentage = .001f;
+Queue<string> actionSequence = new Queue<string>();
+bool isActionSequenceActive = false;
 
 public Program() {
     Runtime.UpdateFrequency = UpdateFrequency.Update10;
@@ -328,8 +330,42 @@ public void setActionWaypoint(string value) {
     }
 }
 
+public void setActionMine() {
+    currentAction = "MN";
 
-public void receiveToMessages () {
+    setGyroscopeOverride(true);
+    setRemoteControlsAutoPilotEnabled(false);
+    miningPosition = getPosition();
+}
+
+public void setActionDock(string value) {
+    currentAction = "DK";
+    extendPistons();
+    setRemoteControlsAutoPilotEnabled(false);
+    setGyroscopeOverride(true);
+    setOrientation(value);
+}
+
+public void setActionUndock(string value) {
+    currentAction = "UD";
+
+    setOrientation(value);
+    dockingPosition = getPosition();
+    setRemoteControlsAutoPilotEnabled(false);
+    setGyroscopeOverride(true);
+    setPowerMode(true);
+
+    List<IMyShipConnector> connectors = new List<IMyShipConnector>();
+    GridTerminalSystem.GetBlocksOfType<IMyShipConnector>(connectors);
+    foreach (IMyShipConnector connector in connectors) {
+        if (connector.CustomData != droneName) {
+            continue;
+        }
+        connector.Disconnect();
+    }
+}
+
+public string receiveToMessages () {
     string lastMessageData = "";
     while (broadcastListener.HasPendingMessage) {
         MyIGCMessage igcMessage = broadcastListener.AcceptMessage();
@@ -338,24 +374,26 @@ public void receiveToMessages () {
             lastMessageData = igcMessage.Data.ToString();
         }
     }
+    return lastMessageData;
+}
 
-    Echo("Inbound Message - " + messageToTag);
-    Echo(lastMessageData);
-
-    if (lastMessageData == "") {
+public void processActionRequest (string message) {
+    if (message == "") {
         return;
     }
+
+    isActionSequenceActive = false;
 
     string action = "";
     string value = "";
 
-    string[] splitLastMessageData = lastMessageData.Split(' ');
-    if (splitLastMessageData.Length >= 1) {
-        action = splitLastMessageData[0];
+    string[] splitMessage = message.Split(' ');
+    if (splitMessage.Length >= 1) {
+        action = splitMessage[0];
     }
 
-    if (splitLastMessageData.Length >= 2) {
-        value = splitLastMessageData[1];
+    if (splitMessage.Length >= 2) {
+        value = splitMessage[1];
     }
 
     if (action == "waypoint") {
@@ -363,30 +401,11 @@ public void receiveToMessages () {
     }
 
     if (action == "undock") {
-        currentAction = "UD";
-
-        setOrientation(value);
-        dockingPosition = getPosition();
-        setRemoteControlsAutoPilotEnabled(false);
-        setGyroscopeOverride(true);
-        setPowerMode(true);
-
-        List<IMyShipConnector> connectors = new List<IMyShipConnector>();
-        GridTerminalSystem.GetBlocksOfType<IMyShipConnector>(connectors);
-        foreach (IMyShipConnector connector in connectors) {
-            if (connector.CustomData != droneName) {
-                continue;
-            }
-            connector.Disconnect();
-        }
+        setActionUndock(value);
     }
 
     if (action == "dock") {
-        currentAction = "DK";
-        extendPistons();
-        setRemoteControlsAutoPilotEnabled(false);
-        setGyroscopeOverride(true);
-        setOrientation(value);
+        setActionDock(value);
     }
 
     if (action == "disable_autopilot") {
@@ -394,22 +413,21 @@ public void receiveToMessages () {
         setRemoteControlsAutoPilotEnabled(false);
     }
 
-    if (action == "low_power") {
-        currentAction = "LP";
-
-        setPowerMode(false);
-    }
-
     if (action == "mine") {
-        currentAction = "MN";
-
-        setGyroscopeOverride(true);
-        setRemoteControlsAutoPilotEnabled(false);
-        miningPosition = getPosition();
+        setActionMine();
     }
 
     if (action == "orientation") {
         setOrientation(value);
+    }
+
+    if (action == "action_sequence") {
+        isActionSequenceActive = true;
+        string[] actions = value.Split('\n');
+        actionSequence.Clear();
+        for (int i = 0; i < actions.Length; i++) {
+            actionSequence.Enqueue(actions[i]);
+        }
     }
     return;
 }
@@ -438,7 +456,18 @@ public void Main(string argument, UpdateType updateSource) {
     string shipVelocityStatus = "?";
     string waypointNameStatus = "?";
 
-    receiveToMessages();
+    string lastMessage = receiveToMessages();
+    processActionRequest(lastMessage);
+
+    if (isActionSequenceActive) {
+        if (actionSequence.Count > 0 && currentAction == "") {
+            processActionRequest(actionSequence.Dequeue());
+        }
+        if (actionSequence.Count == 0) {
+            isActionSequenceActive = false;
+        }
+    }
+
     checkConnector();
 
     int detectedEntitiesCount = 0;
