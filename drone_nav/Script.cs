@@ -14,7 +14,7 @@ Vector3D orientForwardTowards;
 bool useOrientTowards;
 Vector3D dockingPosition;
 Vector3D miningPosition;
-float safeUpPercentage = .005f;
+float safeUpPercentage = .001f;
 
 public Program() {
     Runtime.UpdateFrequency = UpdateFrequency.Update10;
@@ -304,6 +304,31 @@ public void setOrientation (string value) {
     }
 }
 
+public void setActionWaypoint(string value) {
+    currentAction = "WP";
+
+    setGyroscopeOverride(false);
+
+    List<IMyRemoteControl> remoteControls = new List<IMyRemoteControl>();
+    GridTerminalSystem.GetBlocksOfType<IMyRemoteControl>(remoteControls);
+
+    for (int c = 0; c < remoteControls.Count; c++) {
+        if (remoteControls[c].CustomData != droneName) {
+            continue;
+        }
+
+        remoteControls[c].ClearWaypoints();
+        double waypointX = Convert.ToDouble(value.Split(',')[0]);
+        double waypointY = Convert.ToDouble(value.Split(',')[1]);
+        double waypointZ = Convert.ToDouble(value.Split(',')[2]);
+        string waypointName = value.Split(',')[3];
+        Vector3D waypoint = new Vector3D(waypointX, waypointY, waypointZ);
+        remoteControls[c].AddWaypoint(waypoint, waypointName);
+        remoteControls[c].SetAutoPilotEnabled(true);
+    }
+}
+
+
 public void receiveToMessages () {
     string lastMessageData = "";
     while (broadcastListener.HasPendingMessage) {
@@ -334,27 +359,7 @@ public void receiveToMessages () {
     }
 
     if (action == "waypoint") {
-        currentAction = "WP";
-
-        setGyroscopeOverride(false);
-
-        List<IMyRemoteControl> remoteControls = new List<IMyRemoteControl>();
-        GridTerminalSystem.GetBlocksOfType<IMyRemoteControl>(remoteControls);
-
-        for (int c = 0; c < remoteControls.Count; c++) {
-            if (remoteControls[c].CustomData != droneName) {
-                continue;
-            }
-
-            remoteControls[c].ClearWaypoints();
-            double waypointX = Convert.ToDouble(value.Split(',')[0]);
-            double waypointY = Convert.ToDouble(value.Split(',')[1]);
-            double waypointZ = Convert.ToDouble(value.Split(',')[2]);
-            string waypointName = value.Split(',')[3];
-            Vector3D waypoint = new Vector3D(waypointX, waypointY, waypointZ);
-            remoteControls[c].AddWaypoint(waypoint, waypointName);
-            remoteControls[c].SetAutoPilotEnabled(true);
-        }
+        setActionWaypoint(value);
     }
 
     if (action == "undock") {
