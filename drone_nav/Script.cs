@@ -15,8 +15,7 @@ bool useOrientTowards;
 Vector3D dockingPosition;
 Vector3D miningPosition;
 float safeUpPercentage = .001f;
-Queue<string> actionSequence = new Queue<string>();
-bool isActionSequenceActive = false;
+
 
 public Program() {
     Runtime.UpdateFrequency = UpdateFrequency.Update10;
@@ -220,7 +219,6 @@ public Vector3D getPosition() {
         if (remoteControl.CustomData != droneName) {
             continue;
         }
-
         worldPosition = remoteControl.GetPosition();
     }
     return worldPosition;
@@ -382,12 +380,10 @@ public void processActionRequest (string message) {
         return;
     }
 
-    isActionSequenceActive = false;
-
     string action = "";
     string value = "";
 
-    string[] splitMessage = message.Split(' ');
+    string[] splitMessage = message.Split('\n')[0].Split(' ');
     if (splitMessage.Length >= 1) {
         action = splitMessage[0];
     }
@@ -421,14 +417,6 @@ public void processActionRequest (string message) {
         setOrientation(value);
     }
 
-    if (action == "action_sequence") {
-        isActionSequenceActive = true;
-        string[] actions = value.Split('\n');
-        actionSequence.Clear();
-        for (int i = 0; i < actions.Length; i++) {
-            actionSequence.Enqueue(actions[i]);
-        }
-    }
     return;
 }
 
@@ -458,15 +446,6 @@ public void Main(string argument, UpdateType updateSource) {
 
     string lastMessage = receiveToMessages();
     processActionRequest(lastMessage);
-
-    if (isActionSequenceActive) {
-        if (actionSequence.Count > 0 && currentAction == "") {
-            processActionRequest(actionSequence.Dequeue());
-        }
-        if (actionSequence.Count == 0) {
-            isActionSequenceActive = false;
-        }
-    }
 
     checkConnector();
 
@@ -644,7 +623,7 @@ public void Main(string argument, UpdateType updateSource) {
             }
         }
         else if (currentAction == "UD" && remoteControls[c].GetShipVelocities().LinearVelocity.Length() < safeVelocity) {
-            changeUpThrustersThrustOverride(safeUpPercentage);           
+            changeUpThrustersThrustOverride(safeUpPercentage);
             if (Vector3D.Distance(getPosition(), dockingPosition) > 75) {
                 currentAction = "";
                 retractPistons();

@@ -1,13 +1,43 @@
-﻿string messageToTag = "";
+﻿IMyBroadcastListener broadcastListener;
+string messageToTag = "";
+string messageFromTag = "";
+int displayScreen = 1;
+int maxDisplayScreens = 5;
+int displayScreenOption = 0;
+int maxDisplayScreenOptions = 0;
+
+public string getActionSequenceFromDisplay (string actionSequenceTitle, List<IMyTextPanel> displays) {
+    string actionsOnly = "";
+    foreach (IMyTextPanel display in displays) {
+        if (display.CustomData != "action_sequence") {
+            continue;
+        }
+        string actionSequenceHeader = display.GetText().Split('\n')[0];
+        string actionSequenceHeaderTitle = actionSequenceHeader.Split(' ')[1];
+        if (actionSequenceTitle == actionSequenceHeaderTitle) {
+            
+            string[] actionSequence = display.GetText().Split('\n');
+            for (int i = 1; i < actionSequence.Length; i++) {
+                actionsOnly += actionSequence[i] + "\n";
+            }
+        }
+    }
+    return actionsOnly;
+}
 
 public Program()
 {
+    Runtime.UpdateFrequency = UpdateFrequency.Update10;
+
     if (Me.CustomData == null || Me.CustomData.Trim() == "") {
         Echo("No custom data value, stopping");
         return;
     }
 
     messageToTag = Me.CustomData + "_to";
+    messageFromTag = Me.CustomData + "_from";
+
+    broadcastListener = IGC.RegisterBroadcastListener(messageFromTag);
 }
 
 public void Main(string argument, UpdateType updateSource)
@@ -17,13 +47,181 @@ public void Main(string argument, UpdateType updateSource)
         return;
     }
 
+    string[] displayScreenText = new string[maxDisplayScreens];
+
+    string droneName = Me.CustomData;
+    Echo(droneName);
+    displayScreenText[0] = droneName;
+    for (int i = 1; i < maxDisplayScreens; i++) {
+        displayScreenText[i] = droneName + " " + i + " of " + (maxDisplayScreens - 1);
+    }
+
+    string lastMessageData = "";
+    while (broadcastListener.HasPendingMessage) {
+        MyIGCMessage igcMessage = broadcastListener.AcceptMessage();
+        if (igcMessage.Tag == messageFromTag) {
+            Echo("Reading broadcast message");
+            lastMessageData = igcMessage.Data.ToString();
+        }
+    }
+
+    List<IMyTextPanel> displays = new List<IMyTextPanel>();
+    GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(displays);
+
+    string selectedOption = "";
+    string actionStatus = "";
+    if (lastMessageData != null && lastMessageData != "") {
+        Vector3D homePosition = Me.GetPosition();
+        string[] messageData = lastMessageData.Split(',');
+
+        string inventoryStatus = messageData[3];
+        string energyStatus = messageData[4];
+        actionStatus = messageData[5];
+        string drillStatus = messageData[6];
+        string downSensorCloseStatus = messageData[7];
+        string powerStatus = messageData[8];
+        string rollAngleStatus = messageData[9];
+        if (rollAngleStatus != "?") {
+            double rollAngle = Math.Round(Convert.ToDouble(rollAngleStatus), 0, MidpointRounding.AwayFromZero);
+            rollAngleStatus = rollAngle.ToString();
+        }
+        string pitchAngleStatus = messageData[10];
+        if (pitchAngleStatus != "?") {
+            double pitchAngle = Math.Round(Convert.ToDouble(pitchAngleStatus), 0, MidpointRounding.AwayFromZero);
+            pitchAngleStatus = pitchAngle.ToString();
+        }
+
+        string yawAngleStatus = messageData[16];
+        if (yawAngleStatus != "?") {
+            double yawAngle = Math.Round(Convert.ToDouble(yawAngleStatus), 0, MidpointRounding.AwayFromZero);
+            yawAngleStatus = yawAngle.ToString();
+        }
+
+        string downSensorDynamicStatus = messageData[11];
+        string shipMaxVelocityStatus = messageData[12];
+        if (shipMaxVelocityStatus == "" || shipMaxVelocityStatus == "?") {
+            shipMaxVelocityStatus = "0";
+        }
+        shipMaxVelocityStatus = Math.Round(Convert.ToDouble(shipMaxVelocityStatus), 0, MidpointRounding.AwayFromZero).ToString();
+        string shipVelocityStatus = messageData[13];
+        if (shipVelocityStatus == "" || shipVelocityStatus == "?") {
+            shipVelocityStatus = "0";
+        }
+        shipVelocityStatus = Math.Round(Convert.ToDouble(shipVelocityStatus), 0, MidpointRounding.AwayFromZero).ToString();
+
+        string downSensorStatus = downSensorDynamicStatus;
+        string waypointNameStatus = messageData[14];
+        string orientationStatus = messageData[15];
+
+        Vector3D dronePosition;
+        dronePosition.X = Convert.ToDouble(messageData[0]);
+        dronePosition.Y = Convert.ToDouble(messageData[1]);
+        dronePosition.Z = Convert.ToDouble(messageData[2]);
+        double distance = Math.Round(Vector3D.Distance(homePosition, dronePosition) / 1000, 1, MidpointRounding.AwayFromZero);
+       
+        displayScreenText[0] += "\nI " + inventoryStatus;
+        displayScreenText[0] += "\nE " + energyStatus;
+        displayScreenText[0] += "\nD " + distance.ToString();
+        displayScreenText[0] += "\nA " + actionStatus;
+
+        for (int i = 1; i < maxDisplayScreens; i++) {
+            displayScreenText[i] += "\nI:" + inventoryStatus.PadRight(4);
+            displayScreenText[i] += "E:" + energyStatus.PadRight(4);
+            displayScreenText[i] += "D:" + distance.ToString().PadRight(4);
+            displayScreenText[i] += "A:" + actionStatus;
+        }
+
+        displayScreenText[1] += "\nOrientation: " + orientationStatus;
+        displayScreenText[1] += "\nVelocity: " + shipVelocityStatus + "/" + shipMaxVelocityStatus;
+        displayScreenText[1] += "\nRoll: " + rollAngleStatus;
+        displayScreenText[1] += "\nPitch: " + pitchAngleStatus;
+        displayScreenText[1] += "\nYaw: " + yawAngleStatus;
+
+        displayScreenText[2] += "\nWaypoint: " + waypointNameStatus;
+        displayScreenText[2] += "\nVelocity: " + shipVelocityStatus + "/" + shipMaxVelocityStatus;
+        displayScreenText[2] += "\nSensor: " + downSensorStatus;
+
+        displayScreenText[3] += "\nDrill: " + drillStatus;
+        displayScreenText[3] += "\nDrill Sensor: " + downSensorCloseStatus;
+        displayScreenText[3] += "\nVelocity: " + shipVelocityStatus + "/" + shipMaxVelocityStatus;
+        displayScreenText[3] += "\nSensor: " + downSensorStatus;
+
+        maxDisplayScreenOptions = 0;
+        foreach (IMyTextPanel display in displays) {
+            if (display.CustomData != "action_sequence") {
+                continue;
+            }
+            string actionSequenceHeader = display.GetText().Split('\n')[0];
+            if (actionSequenceHeader.StartsWith("action_sequence ")) {
+                if (displayScreenOption == maxDisplayScreenOptions) {
+                    displayScreenText[4] += "\n[ " + actionSequenceHeader.Split(' ')[1] + " ]";
+                    selectedOption = actionSequenceHeader.Split(' ')[1];
+                }
+                else {
+                    displayScreenText[4] += "\n" + actionSequenceHeader.Split(' ')[1];
+                }
+                maxDisplayScreenOptions++;
+            }
+        }
+    }
+
+    foreach (IMyTextPanel display in displays) {
+        if (!display.CustomData.StartsWith(droneName)) {
+            continue;
+        }
+
+        string[] customDataParts = display.CustomData.Split('_');
+        if (customDataParts.Length == 2) {
+            int screenChoice = Int32.Parse(display.CustomData.Split('_')[1]);
+            display.WriteText(displayScreenText[screenChoice]);
+        }
+        else {
+            Echo(display.CustomData);
+        }
+    }
+
+    List<IMyCockpit> cockpits = new List<IMyCockpit>();
+    GridTerminalSystem.GetBlocksOfType<IMyCockpit>(cockpits);
+    foreach (IMyCockpit cockpit in cockpits) {
+        if (cockpit.CustomData != droneName) {
+            continue;
+        }
+
+        for (int c = 0; c < cockpit.SurfaceCount; c++){
+            IMyTextSurface display = cockpit.GetSurface(c);
+            display.WriteText(displayScreenText[displayScreen]);
+        }
+    }
+
+    if (argument == null || argument.Trim() == "" && lastMessageData != "") {
+        foreach (IMyTextPanel display in displays) {
+            if (display.CustomData != "action_sequence") {
+                continue;
+            }
+
+            string actionSequenceDisplayText = display.GetText();
+            if (actionSequenceDisplayText.Split('\n')[0] == Me.CustomData + " action_sequence") {
+                List<string> actionSequence = new List<string>(actionSequenceDisplayText.Split('\n'));
+                if (actionSequence.Count < 2) {
+                    continue;
+                }
+                if (actionStatus != "" && actionStatus != "CN") {
+                    continue;
+                }
+                argument = actionSequence[1];
+                actionSequence.RemoveAt(1);
+                display.WriteText(String.Join("\n", actionSequence.ToArray()));
+            }
+        }
+    }
+
     if (argument == null || argument.Trim() == "") {
-        Echo("No argument, stopping");
+        Echo("No argument and no action_sequence, stopping");
         return;
     }
 
     string message = "";
-    bool validAction = false;
+    bool sendMessage = false;
 
     string action = "";
     string value = "";
@@ -47,19 +245,11 @@ public void Main(string argument, UpdateType updateSource)
             message += "," + value.Split(':')[1];
         }
         else {    
-            List<IMyTextPanel> displays = new List<IMyTextPanel>();
-            GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(displays);
             foreach (IMyTextPanel display in displays) {
                 if (display.CustomData != "Dock1") {
                     continue;
                 }
                 Vector3D tempVector = Vector3D.Forward * 100;
-                Echo(tempVector.X + " " + tempVector.Y + " " + tempVector.Z);
-                // backward, no
-                // down, no
-                // forward, no
-                // up, no
-                // left, no
                 Vector3D waypoint = Vector3D.Transform(Vector3D.Right * 100, display.WorldMatrix);
                 message += " " + waypoint.X;
                 message += "," + waypoint.Y;
@@ -67,12 +257,10 @@ public void Main(string argument, UpdateType updateSource)
                 message += ",Dock1";
             }
         }
-        validAction = true;
+        sendMessage = true;
     }
 
     if (action == "undock") {
-        List<IMyTextPanel> displays = new List<IMyTextPanel>();
-        GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(displays);
         foreach (IMyTextPanel display in displays) {
             if (display.CustomData != "Dock1") {
                 continue;
@@ -92,13 +280,11 @@ public void Main(string argument, UpdateType updateSource)
             message += "," + forwardWorldDirection.X.ToString();
             message += "," + forwardWorldDirection.Y.ToString();
             message += "," + forwardWorldDirection.Z.ToString();
-            validAction = true;
+            sendMessage = true;
         }
     }
 
     if (action == "dock") {
-        List<IMyTextPanel> displays = new List<IMyTextPanel>();
-        GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(displays);
         foreach (IMyTextPanel display in displays) {
             if (display.CustomData != "Dock1") {
                 continue;
@@ -118,23 +304,23 @@ public void Main(string argument, UpdateType updateSource)
             message += "," + forwardWorldDirection.X.ToString();
             message += "," + forwardWorldDirection.Y.ToString();
             message += "," + forwardWorldDirection.Z.ToString();
-            validAction = true;
+            sendMessage = true;
         }
     }
 
     if (action == "disable_autopilot") {
         message = "disable_autopilot";
-        validAction = true;
+        sendMessage = true;
     }
 
     if (action == "low_power") {
         message = "low_power";
-        validAction = true;
+        sendMessage = true;
     }
 
     if (action == "mine") {
         message = "mine";
-        validAction = true;
+        sendMessage = true;
     }
 
     if (action == "orientation") {
@@ -159,33 +345,44 @@ public void Main(string argument, UpdateType updateSource)
         if (value == "natural_gravity") {
             message += " natural_gravity";
         }
-        validAction = true;
+        sendMessage = true;
     }
 
-    if (action == "action_sequence") {
-        List<IMyTextPanel> displays = new List<IMyTextPanel>();
-        GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(displays);
-        foreach (IMyTextPanel display in displays) {
-            if (display.CustomData != "action_sequence") {
-                continue;
-            }
-
-            string actionSequence = display.GetText();
-            Echo("Action Sequence:\n" + actionSequence);
-            // if (actionSequence.Split('\n')[0] != "action_sequence " + value) {
-            //     message = actionSequence.Replace("action_sequence " + value + "\n", "");
-            //     validAction = true;
-            // }
+    if (action == "next_screen") {
+        displayScreen++;
+        if (displayScreen >= maxDisplayScreens) {
+            displayScreen = 1;
         }
     }
 
-    if (!validAction) {
-        Echo("No valid action, stopping");
+    if (action == "next_option") {
+        displayScreenOption++;
+        if (displayScreenOption >= maxDisplayScreenOptions) {
+            displayScreenOption = 0;
+        }
+    }
+
+    if (action == "select_option") {
+        if (displayScreen == 4) {
+            foreach (IMyTextPanel display in displays) {
+                if (display.CustomData != "action_sequence") {
+                    continue;
+                }
+
+                string actionSequenceDisplayText = display.GetText();
+                if (actionSequenceDisplayText.Split('\n')[0] == Me.CustomData + " action_sequence") {
+                    display.WriteText(Me.CustomData + " action_sequence\n" + getActionSequenceFromDisplay(selectedOption, displays));
+                }
+            }
+        }
+    }
+
+    if (!sendMessage) {
+        Echo("No message to send");
         return;
     }
 
     Echo("Outbound Message - " + messageToTag);
     Echo(message);
-    //Me.DisplayText(Me.CustomData + "\n" + message);
     IGC.SendBroadcastMessage(messageToTag, message, TransmissionDistance.AntennaRelay);
 }
