@@ -5,7 +5,7 @@ string currentAction = "";
 string droneName = "";
 double degreesOffCenter = .1;
 int rpmReduction = 16;
-int safeVelocity = 2;
+int safeMiningVelocity = 2;
 string powerMode = "?";
 float[] downSensorDynamicDistances = {50, 45, 40, 35, 30, 25, 20, 15, 10, 5};
 bool[] downSensorDynamicDetections = new bool[10];
@@ -14,8 +14,9 @@ Vector3D orientForwardTowards;
 bool useOrientTowards;
 Vector3D dockingPosition;
 Vector3D miningPosition;
-float safeUpPercentage = .001f;
-
+float safeUpPercentage = .0001f;
+int safeUndockVelocity = 5;
+int safeDockVelocity = 3;
 
 public Program() {
     Runtime.UpdateFrequency = UpdateFrequency.Update10;
@@ -265,6 +266,38 @@ public void setDrillsPower (bool enabled) {
     }
 }
 
+public void setDynamicSensorForDocking () {
+    // List<IMySensorBlock> sensors = new List<IMySensorBlock>();
+    // GridTerminalSystem.GetBlocksOfType<IMySensorBlock>(sensors);
+
+    // foreach (IMySensorBlock sensor in sensors) {
+    //     if (sensor.CustomData != droneName) {
+    //         continue;
+    //     }
+        
+    //     if (sensor.FrontExtend >= 5) {
+    //         sensor.DetectLargeShips = true;
+    //         sensor.DetectSmallShips = true;
+    //     }
+    // }
+}
+
+public void setDynamicSensorForMining () {
+    // List<IMySensorBlock> sensors = new List<IMySensorBlock>();
+    // GridTerminalSystem.GetBlocksOfType<IMySensorBlock>(sensors);
+
+    // foreach (IMySensorBlock sensor in sensors) {
+    //     if (sensor.CustomData != droneName) {
+    //         continue;
+    //     }
+        
+    //     if (sensor.FrontExtend >= 5) {
+    //         sensor.DetectLargeShips = false;
+    //         sensor.DetectSmallShips = false;
+    //     }
+    // }
+}
+
 
 public bool isInventoryFull () {
     List<IMyCargoContainer> cargoContainers = new List<IMyCargoContainer>();
@@ -331,6 +364,7 @@ public void setActionWaypoint(string value) {
 public void setActionMine() {
     currentAction = "MN";
 
+    setDynamicSensorForMining();
     setGyroscopeOverride(true);
     setRemoteControlsAutoPilotEnabled(false);
     miningPosition = getPosition();
@@ -342,6 +376,7 @@ public void setActionDock(string value) {
     setRemoteControlsAutoPilotEnabled(false);
     setGyroscopeOverride(true);
     setOrientation(value);
+    setDynamicSensorForDocking();
 }
 
 public void setActionUndock(string value) {
@@ -455,7 +490,7 @@ public void Main(string argument, UpdateType updateSource) {
     List<IMySensorBlock> sensors = new List<IMySensorBlock>();
     GridTerminalSystem.GetBlocksOfType<IMySensorBlock>(sensors);
     foreach (IMySensorBlock sensor in sensors) {
-        if (sensor.CustomData != droneName || sensor.DetectAsteroids == false) {
+        if (sensor.CustomData != droneName) {
             continue;
         }
 
@@ -609,12 +644,12 @@ public void Main(string argument, UpdateType updateSource) {
         if (detectedEntitiesCount == 0
             && isInventoryFull() == false
             && currentAction == "MN"
-            && remoteControls[c].GetShipVelocities().LinearVelocity.Length() < safeVelocity) {
+            && remoteControls[c].GetShipVelocities().LinearVelocity.Length() < safeMiningVelocity) {
             setDownThrustersThrustOverride(1);
         }
         else if (currentAction == "MN" &&
                     isInventoryFull() == true &&
-                    remoteControls[c].GetShipVelocities().LinearVelocity.Length() < safeVelocity) {
+                    remoteControls[c].GetShipVelocities().LinearVelocity.Length() < safeMiningVelocity) {
             setDownThrustersThrustOverride(0);
             changeUpThrustersThrustOverride(safeUpPercentage);
             double miningDistance = Vector3D.Distance(getPosition(), miningPosition);
@@ -622,7 +657,7 @@ public void Main(string argument, UpdateType updateSource) {
                 currentAction = "";
             }
         }
-        else if (currentAction == "UD" && remoteControls[c].GetShipVelocities().LinearVelocity.Length() < safeVelocity) {
+        else if (currentAction == "UD" && remoteControls[c].GetShipVelocities().LinearVelocity.Length() < safeUndockVelocity) {
             changeUpThrustersThrustOverride(safeUpPercentage);
             if (Vector3D.Distance(getPosition(), dockingPosition) > 75) {
                 currentAction = "";
@@ -633,6 +668,11 @@ public void Main(string argument, UpdateType updateSource) {
                     setGyroscopeOverride(true);
                 }
             }
+        }
+        else if (currentAction == "DK"
+            && remoteControls[c].GetShipVelocities().LinearVelocity.Length() < safeDockVelocity
+            && downSensorDynamicDetections[downSensorDynamicDetections.Length - 2] == false) {
+            setDownThrustersThrustOverride(1);
         }
         else if (currentAction == "WP" && remoteControls[c].IsAutoPilotEnabled == false) {
             currentAction = "";
@@ -703,7 +743,7 @@ public void Main(string argument, UpdateType updateSource) {
         orientationStatus = "Natural gravity";
     }
         
-    message =           positionX.ToString();
+    message =        positionX.ToString();
     message += "," + positionY.ToString();
     message += "," + positionZ.ToString();
     message += "," + cargoContainersPercent;

@@ -5,6 +5,27 @@ int displayScreen = 1;
 int maxDisplayScreens = 5;
 int displayScreenOption = 0;
 int maxDisplayScreenOptions = 0;
+string selectedOption;
+string[] displayScreenTitles = { "Compact", "Dbg", "Gen", "Cmd", "Seq" };
+int droneMaxLogSize = 15;
+string[] droneList = { "Drone1", "Drone2" }
+string selectedDrone = "";
+
+public string getDisplayHeader (int headerForDisplayScreen, string droneName) {
+    string utcNow = DateTime.UtcNow.ToString(@"hh\:mm\:ss");
+    string header = droneName;
+    if (headerForDisplayScreen > 0) {
+        for (int i = 1; i < displayScreenTitles.Length; i++) {
+            if (i == headerForDisplayScreen) {
+                header += " | " + displayScreenTitles[i].ToUpper();
+                continue;
+            }
+            header += " | " + displayScreenTitles[i].ToLower();
+        }
+        header += " | " + utcNow;
+    }
+    return header;
+}
 
 public string getActionSequenceFromDisplay (string actionSequenceTitle, List<IMyTextPanel> displays) {
     string actionsOnly = "";
@@ -15,7 +36,6 @@ public string getActionSequenceFromDisplay (string actionSequenceTitle, List<IMy
         string actionSequenceHeader = display.GetText().Split('\n')[0];
         string actionSequenceHeaderTitle = actionSequenceHeader.Split(' ')[1];
         if (actionSequenceTitle == actionSequenceHeaderTitle) {
-            
             string[] actionSequence = display.GetText().Split('\n');
             for (int i = 1; i < actionSequence.Length; i++) {
                 actionsOnly += actionSequence[i] + "\n";
@@ -23,6 +43,77 @@ public string getActionSequenceFromDisplay (string actionSequenceTitle, List<IMy
         }
     }
     return actionsOnly;
+}
+
+public string getUndockMessage (List<IMyTextPanel> displays) {
+    string message = "";
+    foreach (IMyTextPanel display in displays) {
+        if (display.CustomData != "Dock1") {
+            continue;
+        }
+        
+        Vector3D startWorldPosition = Vector3D.Transform(Vector3D.Zero, Me.WorldMatrix);
+        Vector3D endDownWorldPosition = Vector3D.Transform(Vector3D.Down, Me.WorldMatrix);
+        Vector3D endForwardWorldPosition = Vector3D.Transform(Vector3D.Forward, Me.WorldMatrix);
+        Vector3D downWorldDirection = Vector3D.Subtract(endDownWorldPosition, startWorldPosition);
+        Vector3D forwardWorldDirection = Vector3D.Subtract(endForwardWorldPosition, startWorldPosition);
+        downWorldDirection.Normalize();
+        forwardWorldDirection.Normalize();
+        message = "undock";
+        message += " " + downWorldDirection.X.ToString();
+        message += "," + downWorldDirection.Y.ToString();
+        message += "," + downWorldDirection.Z.ToString();
+        message += "," + forwardWorldDirection.X.ToString();
+        message += "," + forwardWorldDirection.Y.ToString();
+        message += "," + forwardWorldDirection.Z.ToString();
+        
+    }
+    return message;
+}
+
+public void clearActionSequenceDisplay (string droneName, List<IMyTextPanel> displays) {
+    foreach (IMyTextPanel display in displays) {
+        if (display.CustomData != "action_sequence") {
+            continue;
+        }
+
+        string actionSequenceDisplayText = display.GetText();
+        if (actionSequenceDisplayText.Split('\n')[0] == droneName + " action_sequence") {
+            display.WriteText(actionSequenceDisplayText.Split('\n')[0]);
+        }
+    }
+}
+
+public void setActionLog (string droneName, string newEntry, List<IMyTextPanel> displays) {
+    if (newEntry.Trim() == "") {
+        newEntry = "Sequence complete";
+    }
+    string utcNow = DateTime.UtcNow.ToString(@"hh\:mm\:ss");
+    foreach (IMyTextPanel display in displays) {
+        if (display.CustomData != "action_sequence") {
+            continue;
+        }
+        string actionLogHeader = display.GetText().Split('\n')[0];
+        string actionLogHeaderDroneName = actionLogHeader.Split(' ')[0];
+        string actionLogTitle = actionLogHeader.Split(' ')[1];
+
+        if (actionLogHeaderDroneName != droneName) {
+            continue;
+        }
+
+        if (actionLogTitle == "action_sequence_log") {
+            string[] actionSequenceLog = display.GetText().Split('\n');
+            string updatedLog = actionSequenceLog[0];
+            updatedLog += "\n" + utcNow + " " + newEntry;
+            for (int i = 1; i < actionSequenceLog.Length; i++) {
+                if (i > droneMaxLogSize) {
+                    break;
+                }
+                updatedLog += "\n" + actionSequenceLog[i];
+            }
+            display.WriteText(updatedLog);
+        }
+    }
 }
 
 public Program()
@@ -51,9 +142,9 @@ public void Main(string argument, UpdateType updateSource)
 
     string droneName = Me.CustomData;
     Echo(droneName);
-    displayScreenText[0] = droneName;
+    displayScreenText[0] = getDisplayHeader(0, droneName);
     for (int i = 1; i < maxDisplayScreens; i++) {
-        displayScreenText[i] = droneName + " " + i + " of " + (maxDisplayScreens - 1);
+        displayScreenText[i] = getDisplayHeader(i, droneName);
     }
 
     string lastMessageData = "";
@@ -68,7 +159,6 @@ public void Main(string argument, UpdateType updateSource)
     List<IMyTextPanel> displays = new List<IMyTextPanel>();
     GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(displays);
 
-    string selectedOption = "";
     string actionStatus = "";
     if (lastMessageData != null && lastMessageData != "") {
         Vector3D homePosition = Me.GetPosition();
@@ -138,29 +228,44 @@ public void Main(string argument, UpdateType updateSource)
         displayScreenText[1] += "\nYaw: " + yawAngleStatus;
 
         displayScreenText[2] += "\nWaypoint: " + waypointNameStatus;
+        displayScreenText[2] += "\nDrill: " + drillStatus;
+        displayScreenText[2] += "\nDrill Sensor: " + downSensorCloseStatus;
         displayScreenText[2] += "\nVelocity: " + shipVelocityStatus + "/" + shipMaxVelocityStatus;
         displayScreenText[2] += "\nSensor: " + downSensorStatus;
 
-        displayScreenText[3] += "\nDrill: " + drillStatus;
-        displayScreenText[3] += "\nDrill Sensor: " + downSensorCloseStatus;
-        displayScreenText[3] += "\nVelocity: " + shipVelocityStatus + "/" + shipMaxVelocityStatus;
-        displayScreenText[3] += "\nSensor: " + downSensorStatus;
-
         maxDisplayScreenOptions = 0;
+
+        string[] displayScreenCmdOptions = { "Hold", "Clear Seq", "Undock", "Mine" };
+        for (int i = 0; i < displayScreenCmdOptions.Length; i++) {
+            if (i == displayScreenOption) {
+                displayScreenText[3] += "\n[ " + displayScreenCmdOptions[i] + " ]";
+                selectedOption = displayScreenCmdOptions[i];
+            }
+            else {
+                displayScreenText[3] += "\n" + displayScreenCmdOptions[i];
+            }
+        }
+        if (displayScreen == 3) {
+            maxDisplayScreenOptions = displayScreenCmdOptions.Length + 1;
+        }
+        
         foreach (IMyTextPanel display in displays) {
             if (display.CustomData != "action_sequence") {
                 continue;
             }
             string actionSequenceHeader = display.GetText().Split('\n')[0];
             if (actionSequenceHeader.StartsWith("action_sequence ")) {
-                if (displayScreenOption == maxDisplayScreenOptions) {
+                if (displayScreenOption == maxDisplayScreenOptions && displayScreen == 4) {
                     displayScreenText[4] += "\n[ " + actionSequenceHeader.Split(' ')[1] + " ]";
                     selectedOption = actionSequenceHeader.Split(' ')[1];
                 }
                 else {
                     displayScreenText[4] += "\n" + actionSequenceHeader.Split(' ')[1];
                 }
-                maxDisplayScreenOptions++;
+
+                if (displayScreen == 4) {
+                    maxDisplayScreenOptions++;
+                }
             }
         }
     }
@@ -209,6 +314,7 @@ public void Main(string argument, UpdateType updateSource)
                     continue;
                 }
                 argument = actionSequence[1];
+                setActionLog(droneName, argument, displays);
                 actionSequence.RemoveAt(1);
                 display.WriteText(String.Join("\n", actionSequence.ToArray()));
             }
@@ -261,27 +367,8 @@ public void Main(string argument, UpdateType updateSource)
     }
 
     if (action == "undock") {
-        foreach (IMyTextPanel display in displays) {
-            if (display.CustomData != "Dock1") {
-                continue;
-            }
-            
-            Vector3D startWorldPosition = Vector3D.Transform(Vector3D.Zero, Me.WorldMatrix);
-            Vector3D endDownWorldPosition = Vector3D.Transform(Vector3D.Down, Me.WorldMatrix);
-            Vector3D endForwardWorldPosition = Vector3D.Transform(Vector3D.Forward, Me.WorldMatrix);
-            Vector3D downWorldDirection = Vector3D.Subtract(endDownWorldPosition, startWorldPosition);
-            Vector3D forwardWorldDirection = Vector3D.Subtract(endForwardWorldPosition, startWorldPosition);
-            downWorldDirection.Normalize();
-            forwardWorldDirection.Normalize();
-            message = "undock";
-            message += " " + downWorldDirection.X.ToString();
-            message += "," + downWorldDirection.Y.ToString();
-            message += "," + downWorldDirection.Z.ToString();
-            message += "," + forwardWorldDirection.X.ToString();
-            message += "," + forwardWorldDirection.Y.ToString();
-            message += "," + forwardWorldDirection.Z.ToString();
-            sendMessage = true;
-        }
+        message = getUndockMessage(displays);
+        sendMessage = true;
     }
 
     if (action == "dock") {
@@ -349,6 +436,8 @@ public void Main(string argument, UpdateType updateSource)
     }
 
     if (action == "next_screen") {
+        selectedOption = "";
+        displayScreenOption = 0;
         displayScreen++;
         if (displayScreen >= maxDisplayScreens) {
             displayScreen = 1;
@@ -363,6 +452,21 @@ public void Main(string argument, UpdateType updateSource)
     }
 
     if (action == "select_option") {
+        if (displayScreen == 3) {
+            if (selectedOption == "Clear Seq") {
+                clearActionSequenceDisplay(droneName, displays);
+            }
+            
+            if (selectedOption == "Undock") {
+                message = getUndockMessage(displays);
+                sendMessage = true;
+            }
+
+            if (selectedOption == "Mine") {
+                message = "mine";
+                sendMessage = true;
+            }
+        }
         if (displayScreen == 4) {
             foreach (IMyTextPanel display in displays) {
                 if (display.CustomData != "action_sequence") {
