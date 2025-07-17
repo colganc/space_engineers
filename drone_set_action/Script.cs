@@ -190,30 +190,53 @@ public string[] getDisplayScreenText (droneTelemetry telemetry) {
     return displayScreens;
 }
 
-public void setCommandLogDisplays (string droneName, List<droneStatus> statuses, List<IMyTextPanel> displays) {
+public void setCommandLogDisplays (string controllerName, string droneName, List<droneStatus> statuses, List<IMyTextPanel> displays) {
     foreach (IMyTextPanel display in displays) {
-        if (display.CustomData != droneName + "_command_log") {
+        if (display.CustomData != controllerName + "_command_log") {
             continue;
         }
 
+        bool foundStatus = false;
         foreach (droneStatus status in statuses) {
             if (status.droneName != droneName) {
                 continue;
             }
             display.WriteText(droneName + " Command Log\n" + status.commandLog);
+            foundStatus = true;
+            break;
+        }
+
+        if (!foundStatus) {
+            display.WriteText(droneName + " Command Log\nNo log found");
         }
     }  
 }
 
 public List<droneStatus> addCommandSequence (string droneName, List<droneStatus> statuses, string commandSequence) {
+    if (commandSequence == null) {
+        commandSequence = "";
+    }
+
+    bool foundDroneStatus = false;
     for (int i = 0; i < statuses.Count; i++) {
         if (statuses[i].droneName == droneName) {
-            droneStatus status = new droneStatus();
-            status = statuses[i];
+            Echo("2");
+            droneStatus status = statuses[i];
             status.commandSequence += "\n" + commandSequence;
+            statuses[i] = status;
+            foundDroneStatus = true;
             break;
         }
     }
+
+    if (!foundDroneStatus) {
+        droneStatus status = new droneStatus();
+        status.droneName = droneName;
+        status.commandSequence = commandSequence;
+        status.commandLog = "";
+        statuses.Add(status);
+    }
+
     return statuses;
 }
 
@@ -223,6 +246,7 @@ public List<droneStatus> setCommandSequence (string droneName, string commandSeq
             droneStatus status = new droneStatus();
             status = statuses[i];
             status.commandSequence = commandSequence;
+            statuses[i] = status;
             break;
         }
     }
@@ -244,23 +268,31 @@ public List<droneStatus> clearCommandSequence (string droneName, List<droneStatu
             droneStatus status = new droneStatus();
             status = statuses[i];
             status.commandSequence = "";
+            statuses[i] = status;
             break;
         }
     }
     return statuses;
 }
 
-public void setCommandSequenceDisplays (string droneName, List<droneStatus> statuses, List<IMyTextPanel> displays) {
+public void setCommandSequenceDisplays (string controllerName, string droneName, List<droneStatus> statuses, List<IMyTextPanel> displays) {
     foreach (IMyTextPanel display in displays) {
-        if (display.CustomData != droneName + "_command_sequence") {
+        if (display.CustomData != controllerName + "_command_sequence") {
             continue;
         }
 
+        bool foundStatus = false;
         foreach (droneStatus status in statuses) {
             if (status.droneName != droneName) {
                 continue;
             }
-            display.WriteText(droneName + " Command Sequence\n" + status.commandLog);
+            display.WriteText(droneName + " Command Sequence\n" + status.commandSequence);
+            foundStatus = true;
+            break;
+        }
+
+        if (!foundStatus) {
+            display.WriteText(droneName + " Command Sequence\nNo command sequence found");
         }
     }  
 }
@@ -322,14 +354,17 @@ public List<droneStatus> addCommandLogEntry (string droneName, string newEntry, 
             continue;
         }
 
+        Echo("here1");
         string[] commandLog = statuses[i].commandLog.Split('\n');
         string updatedLog = utcNow + " " + newEntry;
+        Echo("here2");
         for (int c = 0; c < commandLog.Length; c++) {
             if (c > droneMaxLogSize) {
                 break;
             }
             updatedLog += "\n" + commandLog[c];
         }
+        Echo("here3");
         droneStatus status = statuses[i];
         status.commandLog = updatedLog;
         statuses[i] = status;
@@ -340,6 +375,7 @@ public List<droneStatus> addCommandLogEntry (string droneName, string newEntry, 
     if (foundDroneStatus == false) {
         droneStatus status = new droneStatus();
         status.droneName = droneName;
+        status.commandSequence = "";
         status.commandLog = utcNow + " " + newEntry;
         statuses.Add(status);
     }
@@ -452,17 +488,18 @@ public void Main(string argument, UpdateType updateSource)
 
     if ((argument == null || argument.Trim() == "") && lastMessageData != "") {
         List<string> commandSequence = new List<string>(getCommandSequence(selectedDrone, droneStatusList).Split('\n'));
-        if (commandSequence.Count > 0 && commandequence[0] != "" && (rawTelemetry.actionStatus == "" || rawTelemetry.actionStatus == "CN")) {
+        if (commandSequence.Count > 0 && commandSequence[0] != "" && (rawTelemetry.actionStatus == "" || rawTelemetry.actionStatus == "CN")) {
             droneStatusList = addCommandLogEntry(selectedDrone, commandSequence[0], droneStatusList);
             commandSequence.RemoveAt(0);
             setCommandSequence(selectedDrone, String.Join("\n", commandSequence.ToArray()), droneStatusList);
         }
     }
-    Echo("here");
-    setCommandSequenceDisplays(selectedDrone, droneStatusList, displays);
-    setCommandLogDisplays(selectedDrone, droneStatusList, displays);
+
+    setCommandSequenceDisplays(controllerName, selectedDrone, droneStatusList, displays);
+    setCommandLogDisplays(controllerName, selectedDrone, droneStatusList, displays);
+
     if (argument == null || argument.Trim() == "") {
-        Echo("No argument and no action_sequence, stopping");
+        Echo("No argument and no command_sequence, stopping");
         return;
     }
 
@@ -600,7 +637,7 @@ public void Main(string argument, UpdateType updateSource)
     if (action == "select_option") {
         if (displayScreen == 3) {
             if (selectedOption == "Clear Seq") {
-                clearCommandSequence(selectedDrone, droneStatusList);
+                droneStatusList = clearCommandSequence(selectedDrone, droneStatusList);
             }
             
             if (selectedOption == "Undock") {
