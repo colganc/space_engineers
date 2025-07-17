@@ -1,6 +1,5 @@
 ﻿IMyBroadcastListener broadcastListener;
-string messageToTag = "";
-string messageFromTag = "";
+string messageToDroneControllerTag = "drone_controller";
 int displayScreen = 1;
 int maxDisplayScreens = 5;
 int displayScreenOption = 0;
@@ -8,8 +7,80 @@ int maxDisplayScreenOptions = 0;
 string selectedOption;
 string[] displayScreenTitles = { "Compact", "Dbg", "Gen", "Cmd", "Seq" };
 int droneMaxLogSize = 15;
-string[] droneList = { "Drone1", "Drone2" }
+string[] droneList = { "Drone1", "Drone2" };
+int activeDrone = 0;
 string selectedDrone = "";
+List<droneTelemetry> displays = new List<droneTelemetry>();
+
+public struct droneTelemetry {
+    public string droneName { get; set; }               // messageData[0];
+    public string inventoryStatus { get; set; }         // messageData[4];
+    public string energyStatus { get; set; }            // messageData[5];
+    public string actionStatus { get; set; }            // messageData[6];
+    public string drillStatus { get; set; }             // messageData[7];
+    public string downSensorCloseStatus { get; set; }   // messageData[8];
+    public string powerStatus { get; set; }             // messageData[9];
+    public string rollAngleStatus { get; set; }         // messageData[10];
+    public string pitchAngleStatus { get; set; }        // messageData[11];
+    public string yawAngleStatus { get; set; }          // messageData[17];
+    public string downSensorDynamicStatus { get; set; } // messageData[12];
+    public string shipMaxVelocityStatus { get; set; }   // messageData[13];
+    public string shipVelocityStatus { get; set; }      // messageData[14];
+    public string waypointNameStatus { get; set; }      // messageData[15];
+    public string orientationStatus { get; set; }       // messageData[16];
+    public string positionX { get; set; }               // messageData[1]
+    public string positionY { get; set; }               // messageData[2]
+    public string positionZ { get; set; }               // messageData[3]
+    public bool wasActedOn { get; set; }
+}
+
+public droneTelemetry messageToDroneTelemetry (string message) {
+    string[] messageData = message.Split(',');
+
+    droneTelemetry messageTelemetry = new droneTelemetry();
+    messageTelemetry.droneName = messageData[0];
+    messageTelemetry.inventoryStatus = messageData[4];
+    messageTelemetry.energyStatus = messageData[5];
+    messageTelemetry.actionStatus = messageData[6];
+    messageTelemetry.drillStatus = messageData[7];
+    messageTelemetry.downSensorCloseStatus = messageData[8];
+    messageTelemetry.powerStatus = messageData[9];
+    messageTelemetry.rollAngleStatus = messageData[10];
+    if (messageTelemetry.rollAngleStatus != "?") {
+        double rollAngle = Math.Round(Convert.ToDouble(messageTelemetry.rollAngleStatus), 0, MidpointRounding.AwayFromZero);
+        messageTelemetry.rollAngleStatus = rollAngle.ToString();
+    }
+    messageTelemetry.pitchAngleStatus = messageData[11];
+    if (messageTelemetry.pitchAngleStatus != "?") {
+        double pitchAngle = Math.Round(Convert.ToDouble(messageTelemetry.pitchAngleStatus), 0, MidpointRounding.AwayFromZero);
+        messageTelemetry.pitchAngleStatus = pitchAngle.ToString();
+    }
+    messageTelemetry.yawAngleStatus = messageData[17];
+    if (messageTelemetry.yawAngleStatus != "?") {
+        double yawAngle = Math.Round(Convert.ToDouble(messageTelemetry.yawAngleStatus), 0, MidpointRounding.AwayFromZero);
+        messageTelemetry.yawAngleStatus = yawAngle.ToString();
+    }
+    messageTelemetry.downSensorDynamicStatus = messageData[12];
+    messageTelemetry.shipMaxVelocityStatus = messageData[13];
+    if (messageTelemetry.shipMaxVelocityStatus == "" || messageTelemetry.shipMaxVelocityStatus == "?") {
+        messageTelemetry.shipMaxVelocityStatus = "0";
+    }
+    messageTelemetry.shipVelocityStatus = messageData[14];
+    messageTelemetry.shipMaxVelocityStatus = Math.Round(Convert.ToDouble(messageTelemetry.shipMaxVelocityStatus), 0, MidpointRounding.AwayFromZero).ToString();
+    if (messageTelemetry.shipVelocityStatus == "" || messageTelemetry.shipVelocityStatus == "?") {
+        messageTelemetry.shipVelocityStatus = "0";
+    }
+    messageTelemetry.shipVelocityStatus = Math.Round(Convert.ToDouble(messageTelemetry.shipVelocityStatus), 0, MidpointRounding.AwayFromZero).ToString();
+
+    messageTelemetry.waypointNameStatus = messageData[15];
+    messageTelemetry.orientationStatus = messageData[16];
+    messageTelemetry.positionX = messageData[1];
+    messageTelemetry.positionY = messageData[2];
+    messageTelemetry.positionZ = messageData[3];
+    messageTelemetry.wasActedOn = false;
+
+    return messageTelemetry;
+}
 
 public string getDisplayHeader (int headerForDisplayScreen, string droneName) {
     string utcNow = DateTime.UtcNow.ToString(@"hh\:mm\:ss");
@@ -25,6 +96,48 @@ public string getDisplayHeader (int headerForDisplayScreen, string droneName) {
         header += " | " + utcNow;
     }
     return header;
+}
+
+public string[] getDisplayScreenText (droneTelemetry telemetry) {
+    string[] displayScreens = new string[5];
+
+    Vector3D homePosition = Me.GetPosition();
+    Vector3D dronePosition;
+    dronePosition.X = Convert.ToDouble(telemetry.positionX);
+    dronePosition.Y = Convert.ToDouble(telemetry.positionY);
+    dronePosition.Z = Convert.ToDouble(telemetry.positionZ);
+    double distance = Math.Round(Vector3D.Distance(homePosition, dronePosition) / 1000, 1, MidpointRounding.AwayFromZero);
+
+    displayScreens[0] = getDisplayHeader(0, droneList[activeDrone]);
+    for (int i = 1; i < maxDisplayScreens; i++) {
+        displayScreens[i] = getDisplayHeader(i, droneList[activeDrone]);
+    }
+
+    displayScreens[0] += "\nI " + telemetry.inventoryStatus;
+    displayScreens[0] += "\nE " + telemetry.energyStatus;
+    displayScreens[0] += "\nD " + distance.ToString();
+    displayScreens[0] += "\nA " + telemetry.actionStatus;
+
+    for (int i = 1; i < maxDisplayScreens; i++) {
+        displayScreens[i] += "\nI:" + telemetry.inventoryStatus.PadRight(4);
+        displayScreens[i] += "E:" + telemetry.energyStatus.PadRight(4);
+        displayScreens[i] += "D:" + distance.ToString().PadRight(4);
+        displayScreens[i] += "A:" + telemetry.actionStatus;
+    }
+
+    displayScreens[1] += "\nOrientation: " + telemetry.orientationStatus;
+    displayScreens[1] += "\nVelocity: " + telemetry.shipVelocityStatus + "/" + telemetry.shipMaxVelocityStatus;
+    displayScreens[1] += "\nRoll: " + telemetry.rollAngleStatus;
+    displayScreens[1] += "\nPitch: " + telemetry.pitchAngleStatus;
+    displayScreens[1] += "\nYaw: " + telemetry.yawAngleStatus;
+
+    displayScreens[2] += "\nWaypoint: " + telemetry.waypointNameStatus;
+    displayScreens[2] += "\nDrill: " + telemetry.drillStatus;
+    displayScreens[2] += "\nDrill Sensor: " + telemetry.downSensorCloseStatus;
+    displayScreens[2] += "\nVelocity: " + telemetry.shipVelocityStatus + "/" + telemetry.shipMaxVelocityStatus;
+    displayScreens[2] += "\nSensor: " + telemetry.downSensorDynamicStatus;
+
+    return displayScreens;
 }
 
 public string getActionSequenceFromDisplay (string actionSequenceTitle, List<IMyTextPanel> displays) {
@@ -125,10 +238,7 @@ public Program()
         return;
     }
 
-    messageToTag = Me.CustomData + "_to";
-    messageFromTag = Me.CustomData + "_from";
-
-    broadcastListener = IGC.RegisterBroadcastListener(messageFromTag);
+    broadcastListener = IGC.RegisterBroadcastListener(messageToDroneControllerTag);
 }
 
 public void Main(string argument, UpdateType updateSource)
@@ -142,15 +252,11 @@ public void Main(string argument, UpdateType updateSource)
 
     string droneName = Me.CustomData;
     Echo(droneName);
-    displayScreenText[0] = getDisplayHeader(0, droneName);
-    for (int i = 1; i < maxDisplayScreens; i++) {
-        displayScreenText[i] = getDisplayHeader(i, droneName);
-    }
 
     string lastMessageData = "";
     while (broadcastListener.HasPendingMessage) {
         MyIGCMessage igcMessage = broadcastListener.AcceptMessage();
-        if (igcMessage.Tag == messageFromTag) {
+        if (igcMessage.Tag == messageToDroneControllerTag) {
             Echo("Reading broadcast message");
             lastMessageData = igcMessage.Data.ToString();
         }
@@ -159,79 +265,11 @@ public void Main(string argument, UpdateType updateSource)
     List<IMyTextPanel> displays = new List<IMyTextPanel>();
     GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(displays);
 
-    string actionStatus = "";
+    droneTelemetry rawTelemetry = new droneTelemetry();
+
     if (lastMessageData != null && lastMessageData != "") {
-        Vector3D homePosition = Me.GetPosition();
-        string[] messageData = lastMessageData.Split(',');
-
-        string inventoryStatus = messageData[3];
-        string energyStatus = messageData[4];
-        actionStatus = messageData[5];
-        string drillStatus = messageData[6];
-        string downSensorCloseStatus = messageData[7];
-        string powerStatus = messageData[8];
-        string rollAngleStatus = messageData[9];
-        if (rollAngleStatus != "?") {
-            double rollAngle = Math.Round(Convert.ToDouble(rollAngleStatus), 0, MidpointRounding.AwayFromZero);
-            rollAngleStatus = rollAngle.ToString();
-        }
-        string pitchAngleStatus = messageData[10];
-        if (pitchAngleStatus != "?") {
-            double pitchAngle = Math.Round(Convert.ToDouble(pitchAngleStatus), 0, MidpointRounding.AwayFromZero);
-            pitchAngleStatus = pitchAngle.ToString();
-        }
-
-        string yawAngleStatus = messageData[16];
-        if (yawAngleStatus != "?") {
-            double yawAngle = Math.Round(Convert.ToDouble(yawAngleStatus), 0, MidpointRounding.AwayFromZero);
-            yawAngleStatus = yawAngle.ToString();
-        }
-
-        string downSensorDynamicStatus = messageData[11];
-        string shipMaxVelocityStatus = messageData[12];
-        if (shipMaxVelocityStatus == "" || shipMaxVelocityStatus == "?") {
-            shipMaxVelocityStatus = "0";
-        }
-        shipMaxVelocityStatus = Math.Round(Convert.ToDouble(shipMaxVelocityStatus), 0, MidpointRounding.AwayFromZero).ToString();
-        string shipVelocityStatus = messageData[13];
-        if (shipVelocityStatus == "" || shipVelocityStatus == "?") {
-            shipVelocityStatus = "0";
-        }
-        shipVelocityStatus = Math.Round(Convert.ToDouble(shipVelocityStatus), 0, MidpointRounding.AwayFromZero).ToString();
-
-        string downSensorStatus = downSensorDynamicStatus;
-        string waypointNameStatus = messageData[14];
-        string orientationStatus = messageData[15];
-
-        Vector3D dronePosition;
-        dronePosition.X = Convert.ToDouble(messageData[0]);
-        dronePosition.Y = Convert.ToDouble(messageData[1]);
-        dronePosition.Z = Convert.ToDouble(messageData[2]);
-        double distance = Math.Round(Vector3D.Distance(homePosition, dronePosition) / 1000, 1, MidpointRounding.AwayFromZero);
-       
-        displayScreenText[0] += "\nI " + inventoryStatus;
-        displayScreenText[0] += "\nE " + energyStatus;
-        displayScreenText[0] += "\nD " + distance.ToString();
-        displayScreenText[0] += "\nA " + actionStatus;
-
-        for (int i = 1; i < maxDisplayScreens; i++) {
-            displayScreenText[i] += "\nI:" + inventoryStatus.PadRight(4);
-            displayScreenText[i] += "E:" + energyStatus.PadRight(4);
-            displayScreenText[i] += "D:" + distance.ToString().PadRight(4);
-            displayScreenText[i] += "A:" + actionStatus;
-        }
-
-        displayScreenText[1] += "\nOrientation: " + orientationStatus;
-        displayScreenText[1] += "\nVelocity: " + shipVelocityStatus + "/" + shipMaxVelocityStatus;
-        displayScreenText[1] += "\nRoll: " + rollAngleStatus;
-        displayScreenText[1] += "\nPitch: " + pitchAngleStatus;
-        displayScreenText[1] += "\nYaw: " + yawAngleStatus;
-
-        displayScreenText[2] += "\nWaypoint: " + waypointNameStatus;
-        displayScreenText[2] += "\nDrill: " + drillStatus;
-        displayScreenText[2] += "\nDrill Sensor: " + downSensorCloseStatus;
-        displayScreenText[2] += "\nVelocity: " + shipVelocityStatus + "/" + shipMaxVelocityStatus;
-        displayScreenText[2] += "\nSensor: " + downSensorStatus;
+        rawTelemetry = messageToDroneTelemetry(lastMessageData);
+        displayScreenText = getDisplayScreenText(rawTelemetry);
 
         maxDisplayScreenOptions = 0;
 
@@ -310,7 +348,7 @@ public void Main(string argument, UpdateType updateSource)
                 if (actionSequence.Count < 2) {
                     continue;
                 }
-                if (actionStatus != "" && actionStatus != "CN") {
+                if (rawTelemetry.actionStatus != "" && rawTelemetry.actionStatus != "CN") {
                     continue;
                 }
                 argument = actionSequence[1];
@@ -435,6 +473,16 @@ public void Main(string argument, UpdateType updateSource)
         sendMessage = true;
     }
 
+    if (action == "next_drone") {
+        selectedOption = "";
+        displayScreenOption = 0;
+        activeDrone++;
+        if (activeDrone >= droneList.Length) {
+            activeDrone = 0;
+        }
+        selectedDrone = droneList[activeDrone];
+    }
+
     if (action == "next_screen") {
         selectedOption = "";
         displayScreenOption = 0;
@@ -486,7 +534,8 @@ public void Main(string argument, UpdateType updateSource)
         return;
     }
 
-    Echo("Outbound Message - " + messageToTag);
+    string messageTag = droneList[activeDrone];
+    Echo("Outbound Message - " + messageTag);
     Echo(message);
-    IGC.SendBroadcastMessage(messageToTag, message, TransmissionDistance.AntennaRelay);
+    IGC.SendBroadcastMessage(messageTag, message, TransmissionDistance.AntennaRelay);
 }

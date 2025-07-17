@@ -1,6 +1,6 @@
 ﻿IMyBroadcastListener broadcastListener;
 string messageToTag = "";
-string messageFromTag = "";
+string messageToDroneControllerTag = "drone_controller";
 string currentAction = "";
 string droneName = "";
 double degreesOffCenter = .1;
@@ -27,8 +27,7 @@ public Program() {
     }
 
     droneName = Me.CustomData;
-    messageToTag = Me.CustomData + "_to";
-    messageFromTag = Me.CustomData + "_from";
+    messageToTag = Me.CustomData;
     broadcastListener = IGC.RegisterBroadcastListener(messageToTag);
 }
 
@@ -742,8 +741,9 @@ public void Main(string argument, UpdateType updateSource) {
     if (!useOrientTowards) {
         orientationStatus = "Natural gravity";
     }
-        
-    message =        positionX.ToString();
+
+    message =        droneName;
+    message += "," + positionX.ToString();
     message += "," + positionY.ToString();
     message += "," + positionZ.ToString();
     message += "," + cargoContainersPercent;
@@ -760,7 +760,7 @@ public void Main(string argument, UpdateType updateSource) {
     message += "," + waypointNameStatus;
     message += "," + orientationStatus;
     message += "," + yawAngleStatus;
-    Echo("Outbound Message - " + messageFromTag);
+    Echo("Outbound Message - " + messageToDroneControllerTag);
     Echo(message);
-    IGC.SendBroadcastMessage(messageFromTag, message, TransmissionDistance.AntennaRelay);
+    IGC.SendBroadcastMessage(messageToDroneControllerTag, message, TransmissionDistance.AntennaRelay);
 }
