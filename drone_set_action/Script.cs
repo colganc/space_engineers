@@ -7,10 +7,8 @@ int maxDisplayScreenOptions = 0;
 string selectedOption;
 string[] displayScreenTitles = { "Compact", "Dbg", "Gen", "Cmd", "Seq" };
 int droneMaxLogSize = 15;
-string[] droneList = { "Drone1", "Drone2" };
-int activeDrone = 0;
 string selectedDrone = "";
-List<droneTelemetry> displays = new List<droneTelemetry>();
+List<droneTelemetry> droneTelemetryList = new List<droneTelemetry>();
 
 public struct droneTelemetry {
     public string droneName { get; set; }               // messageData[0];
@@ -82,6 +80,51 @@ public droneTelemetry messageToDroneTelemetry (string message) {
     return messageTelemetry;
 }
 
+public droneTelemetry getDroneTelemetry (string droneName, List<droneTelemetry> drones) {
+    droneTelemetry telemetry = new droneTelemetry();
+    foreach (droneTelemetry drone in drones) {
+        if (drone.droneName == droneName) {
+            telemetry = drone;
+        }
+    }
+    return telemetry;
+}
+
+public string getNextDroneName (string droneName, List<droneTelemetry> drones) {
+    if (drones.Count == 0) {
+        return "";
+    }
+
+    for (int i = 0; i < drones.Count; i++) {
+        if (drones[i].droneName == droneName) {
+            int nextDrone = i++;
+            if (nextDrone > drones.Count) {
+                nextDrone = 0;
+            }
+            return drones[nextDrone].droneName;
+        }
+    }
+
+    return drones[0].droneName;
+}
+
+public List<droneTelemetry> setDroneTelemetry (droneTelemetry setTelemetry, List<droneTelemetry> drones) {
+    if (setTelemetry.droneName == "" || setTelemetry.droneName == null) {
+        return drones;
+    }
+
+    for (int i = 0; i < drones.Count; i++) {
+        if (drones[i].droneName == setTelemetry.droneName) {
+            drones[i] = setTelemetry;
+            return drones;
+        }
+    }
+
+    drones.Add(setTelemetry);
+    return drones;
+}
+
+
 public string getDisplayHeader (int headerForDisplayScreen, string droneName) {
     string utcNow = DateTime.UtcNow.ToString(@"hh\:mm\:ss");
     string header = droneName;
@@ -108,9 +151,9 @@ public string[] getDisplayScreenText (droneTelemetry telemetry) {
     dronePosition.Z = Convert.ToDouble(telemetry.positionZ);
     double distance = Math.Round(Vector3D.Distance(homePosition, dronePosition) / 1000, 1, MidpointRounding.AwayFromZero);
 
-    displayScreens[0] = getDisplayHeader(0, droneList[activeDrone]);
+    displayScreens[0] = getDisplayHeader(0, telemetry.droneName);
     for (int i = 1; i < maxDisplayScreens; i++) {
-        displayScreens[i] = getDisplayHeader(i, droneList[activeDrone]);
+        displayScreens[i] = getDisplayHeader(i, telemetry.droneName);
     }
 
     displayScreens[0] += "\nI " + telemetry.inventoryStatus;
@@ -266,44 +309,48 @@ public void Main(string argument, UpdateType updateSource)
     GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(displays);
 
     droneTelemetry rawTelemetry = new droneTelemetry();
-
     if (lastMessageData != null && lastMessageData != "") {
         rawTelemetry = messageToDroneTelemetry(lastMessageData);
-        displayScreenText = getDisplayScreenText(rawTelemetry);
+        setDroneTelemetry(rawTelemetry, droneTelemetryList);
+    }
+    else {
+        rawTelemetry = getDroneTelemetry(selectedDrone, droneTelemetryList);
+    }
 
-        maxDisplayScreenOptions = 0;
+    displayScreenText = getDisplayScreenText(rawTelemetry);
 
-        string[] displayScreenCmdOptions = { "Hold", "Clear Seq", "Undock", "Mine" };
-        for (int i = 0; i < displayScreenCmdOptions.Length; i++) {
-            if (i == displayScreenOption) {
-                displayScreenText[3] += "\n[ " + displayScreenCmdOptions[i] + " ]";
-                selectedOption = displayScreenCmdOptions[i];
+    maxDisplayScreenOptions = 0;
+
+    string[] displayScreenCmdOptions = { "Hold", "Clear Seq", "Undock", "Mine" };
+    for (int i = 0; i < displayScreenCmdOptions.Length; i++) {
+        if (i == displayScreenOption) {
+            displayScreenText[3] += "\n[ " + displayScreenCmdOptions[i] + " ]";
+            selectedOption = displayScreenCmdOptions[i];
+        }
+        else {
+            displayScreenText[3] += "\n" + displayScreenCmdOptions[i];
+        }
+    }
+    if (displayScreen == 3) {
+        maxDisplayScreenOptions = displayScreenCmdOptions.Length + 1;
+    }
+    
+    foreach (IMyTextPanel display in displays) {
+        if (display.CustomData != "action_sequence") {
+            continue;
+        }
+        string actionSequenceHeader = display.GetText().Split('\n')[0];
+        if (actionSequenceHeader.StartsWith("action_sequence ")) {
+            if (displayScreenOption == maxDisplayScreenOptions && displayScreen == 4) {
+                displayScreenText[4] += "\n[ " + actionSequenceHeader.Split(' ')[1] + " ]";
+                selectedOption = actionSequenceHeader.Split(' ')[1];
             }
             else {
-                displayScreenText[3] += "\n" + displayScreenCmdOptions[i];
+                displayScreenText[4] += "\n" + actionSequenceHeader.Split(' ')[1];
             }
-        }
-        if (displayScreen == 3) {
-            maxDisplayScreenOptions = displayScreenCmdOptions.Length + 1;
-        }
-        
-        foreach (IMyTextPanel display in displays) {
-            if (display.CustomData != "action_sequence") {
-                continue;
-            }
-            string actionSequenceHeader = display.GetText().Split('\n')[0];
-            if (actionSequenceHeader.StartsWith("action_sequence ")) {
-                if (displayScreenOption == maxDisplayScreenOptions && displayScreen == 4) {
-                    displayScreenText[4] += "\n[ " + actionSequenceHeader.Split(' ')[1] + " ]";
-                    selectedOption = actionSequenceHeader.Split(' ')[1];
-                }
-                else {
-                    displayScreenText[4] += "\n" + actionSequenceHeader.Split(' ')[1];
-                }
 
-                if (displayScreen == 4) {
-                    maxDisplayScreenOptions++;
-                }
+            if (displayScreen == 4) {
+                maxDisplayScreenOptions++;
             }
         }
     }
@@ -317,9 +364,6 @@ public void Main(string argument, UpdateType updateSource)
         if (customDataParts.Length == 2) {
             int screenChoice = Int32.Parse(display.CustomData.Split('_')[1]);
             display.WriteText(displayScreenText[screenChoice]);
-        }
-        else {
-            Echo(display.CustomData);
         }
     }
 
@@ -336,7 +380,7 @@ public void Main(string argument, UpdateType updateSource)
         }
     }
 
-    if (argument == null || argument.Trim() == "" && lastMessageData != "") {
+    if ((argument == null || argument.Trim() == "") && lastMessageData != "") {
         foreach (IMyTextPanel display in displays) {
             if (display.CustomData != "action_sequence") {
                 continue;
@@ -476,11 +520,7 @@ public void Main(string argument, UpdateType updateSource)
     if (action == "next_drone") {
         selectedOption = "";
         displayScreenOption = 0;
-        activeDrone++;
-        if (activeDrone >= droneList.Length) {
-            activeDrone = 0;
-        }
-        selectedDrone = droneList[activeDrone];
+        selectedDrone = getNextDroneName(selectedDrone, droneTelemetryList);
     }
 
     if (action == "next_screen") {
@@ -534,7 +574,7 @@ public void Main(string argument, UpdateType updateSource)
         return;
     }
 
-    string messageTag = droneList[activeDrone];
+    string messageTag = selectedDrone;
     Echo("Outbound Message - " + messageTag);
     Echo(message);
     IGC.SendBroadcastMessage(messageTag, message, TransmissionDistance.AntennaRelay);
