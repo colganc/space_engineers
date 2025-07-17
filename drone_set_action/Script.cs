@@ -451,17 +451,16 @@ public void Main(string argument, UpdateType updateSource)
     }
 
     if ((argument == null || argument.Trim() == "") && lastMessageData != "") {
-        List<string> actionSequence = new List<string>(getCommandSequence(selectedDrone, droneStatusList).Split('\n'));
-        if (actionSequence.Count > 0 && (rawTelemetry.actionStatus == "" || rawTelemetry.actionStatus == "CN")) {
-            droneStatusList = addCommandLogEntry(selectedDrone, actionSequence[1], droneStatusList);
-            actionSequence.RemoveAt(1);
-            setCommandSequence(selectedDrone, String.Join("\n", actionSequence.ToArray()), droneStatusList);
+        List<string> commandSequence = new List<string>(getCommandSequence(selectedDrone, droneStatusList).Split('\n'));
+        if (commandSequence.Count > 0 && commandequence[0] != "" && (rawTelemetry.actionStatus == "" || rawTelemetry.actionStatus == "CN")) {
+            droneStatusList = addCommandLogEntry(selectedDrone, commandSequence[0], droneStatusList);
+            commandSequence.RemoveAt(0);
+            setCommandSequence(selectedDrone, String.Join("\n", commandSequence.ToArray()), droneStatusList);
         }
     }
-
+    Echo("here");
     setCommandSequenceDisplays(selectedDrone, droneStatusList, displays);
     setCommandLogDisplays(selectedDrone, droneStatusList, displays);
-
     if (argument == null || argument.Trim() == "") {
         Echo("No argument and no action_sequence, stopping");
         return;
