@@ -162,10 +162,10 @@ public string[] getDisplayScreenText (droneTelemetry telemetry) {
     displayScreens[0] += "\nA " + telemetry.actionStatus;
 
     for (int i = 1; i < maxDisplayScreens; i++) {
-        displayScreens[i] += "\nI:" + telemetry.inventoryStatus.PadRight(4);
-        displayScreens[i] += "E:" + telemetry.energyStatus.PadRight(4);
-        displayScreens[i] += "D:" + distance.ToString().PadRight(4);
-        displayScreens[i] += "A:" + telemetry.actionStatus;
+        displayScreens[i] += "\nI:" + telemetry.inventoryStatus;
+        displayScreens[i] += "   E:" + telemetry.energyStatus;
+        displayScreens[i] += "   D:" + distance;
+        displayScreens[i] += "   A:" + telemetry.actionStatus;
     }
 
     displayScreens[1] += "\nOrientation: " + telemetry.orientationStatus;
@@ -290,32 +290,25 @@ public void Main(string argument, UpdateType updateSource)
         Echo("No custom data value, stopping");
         return;
     }
-
+    string controllerName = Me.CustomData;
+    
     string[] displayScreenText = new string[maxDisplayScreens];
-
-    string droneName = Me.CustomData;
-    Echo(droneName);
-
     string lastMessageData = "";
+
     while (broadcastListener.HasPendingMessage) {
         MyIGCMessage igcMessage = broadcastListener.AcceptMessage();
         if (igcMessage.Tag == messageToDroneControllerTag) {
-            Echo("Reading broadcast message");
             lastMessageData = igcMessage.Data.ToString();
         }
     }
 
+    if (lastMessageData != null && lastMessageData != "") {
+        setDroneTelemetry(messageToDroneTelemetry(lastMessageData), droneTelemetryList);
+    }
+    droneTelemetry rawTelemetry = getDroneTelemetry(selectedDrone, droneTelemetryList);
+
     List<IMyTextPanel> displays = new List<IMyTextPanel>();
     GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(displays);
-
-    droneTelemetry rawTelemetry = new droneTelemetry();
-    if (lastMessageData != null && lastMessageData != "") {
-        rawTelemetry = messageToDroneTelemetry(lastMessageData);
-        setDroneTelemetry(rawTelemetry, droneTelemetryList);
-    }
-    else {
-        rawTelemetry = getDroneTelemetry(selectedDrone, droneTelemetryList);
-    }
 
     displayScreenText = getDisplayScreenText(rawTelemetry);
 
@@ -355,22 +348,24 @@ public void Main(string argument, UpdateType updateSource)
         }
     }
 
-    foreach (IMyTextPanel display in displays) {
-        if (!display.CustomData.StartsWith(droneName)) {
-            continue;
-        }
+    if (selectedDrone != "") {
+        foreach (IMyTextPanel display in displays) {
+            if (!display.CustomData.StartsWith(selectedDrone)) {
+                continue;
+            }
 
-        string[] customDataParts = display.CustomData.Split('_');
-        if (customDataParts.Length == 2) {
-            int screenChoice = Int32.Parse(display.CustomData.Split('_')[1]);
-            display.WriteText(displayScreenText[screenChoice]);
+            string[] customDataParts = display.CustomData.Split('_');
+            if (customDataParts.Length == 2) {
+                int screenChoice = Int32.Parse(display.CustomData.Split('_')[1]);
+                display.WriteText(displayScreenText[screenChoice]);
+            }
         }
     }
 
     List<IMyCockpit> cockpits = new List<IMyCockpit>();
     GridTerminalSystem.GetBlocksOfType<IMyCockpit>(cockpits);
     foreach (IMyCockpit cockpit in cockpits) {
-        if (cockpit.CustomData != droneName) {
+        if (cockpit.CustomData != controllerName) {
             continue;
         }
 
@@ -396,7 +391,7 @@ public void Main(string argument, UpdateType updateSource)
                     continue;
                 }
                 argument = actionSequence[1];
-                setActionLog(droneName, argument, displays);
+                setActionLog(selectedDrone, argument, displays);
                 actionSequence.RemoveAt(1);
                 display.WriteText(String.Join("\n", actionSequence.ToArray()));
             }
@@ -542,7 +537,7 @@ public void Main(string argument, UpdateType updateSource)
     if (action == "select_option") {
         if (displayScreen == 3) {
             if (selectedOption == "Clear Seq") {
-                clearActionSequenceDisplay(droneName, displays);
+                clearActionSequenceDisplay(selectedDrone, displays);
             }
             
             if (selectedOption == "Undock") {
@@ -574,8 +569,7 @@ public void Main(string argument, UpdateType updateSource)
         return;
     }
 
-    string messageTag = selectedDrone;
-    Echo("Outbound Message - " + messageTag);
+    Echo("Outbound Message - " + selectedDrone);
     Echo(message);
-    IGC.SendBroadcastMessage(messageTag, message, TransmissionDistance.AntennaRelay);
+    IGC.SendBroadcastMessage(selectedDrone, message, TransmissionDistance.AntennaRelay);
 }
