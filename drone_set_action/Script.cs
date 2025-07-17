@@ -8,7 +8,6 @@ string selectedOption;
 string[] displayScreenTitles = { "Compact", "Dbg", "Gen", "Cmd", "Seq" };
 int droneMaxLogSize = 15;
 string selectedDrone = "";
-List<droneTelemetry> droneTelemetryList = new List<droneTelemetry>();
 
 public struct droneTelemetry {
     public string droneName { get; set; }               // messageData[0];
@@ -31,6 +30,14 @@ public struct droneTelemetry {
     public string positionZ { get; set; }               // messageData[3]
     public bool wasActedOn { get; set; }
 }
+List<droneTelemetry> droneTelemetryList = new List<droneTelemetry>();
+
+public struct droneStatus {
+    public string droneName { get; set; }
+    public string commandSequence { get; set; }
+    public string commandLog { get; set; }
+}
+List<droneStatus> droneStatusList = new List<droneStatus>();
 
 public droneTelemetry messageToDroneTelemetry (string message) {
     string[] messageData = message.Split(',');
@@ -183,6 +190,21 @@ public string[] getDisplayScreenText (droneTelemetry telemetry) {
     return displayScreens;
 }
 
+public void setCommandLogDisplays (string droneName, List<droneStatus> statuses, List<IMyTextPanel> displays) {
+    foreach (IMyTextPanel display in displays) {
+        if (display.CustomData != droneName + "_command_log") {
+            continue;
+        }
+
+        foreach (droneStatus status in statuses) {
+            if (status.droneName != droneName) {
+                continue;
+            }
+            display.WriteText(droneName + " Command Log\n" + status.commandLog);
+        }
+    }  
+}
+
 public string getActionSequenceFromDisplay (string actionSequenceTitle, List<IMyTextPanel> displays) {
     string actionsOnly = "";
     foreach (IMyTextPanel display in displays) {
@@ -240,36 +262,42 @@ public void clearActionSequenceDisplay (string droneName, List<IMyTextPanel> dis
     }
 }
 
-public void setActionLog (string droneName, string newEntry, List<IMyTextPanel> displays) {
+public List<droneStatus> addCommandLogEntry (string droneName, string newEntry, List<droneStatus> statuses) {
     if (newEntry.Trim() == "") {
-        newEntry = "Sequence complete";
+        return statuses;
     }
+
     string utcNow = DateTime.UtcNow.ToString(@"hh\:mm\:ss");
-    foreach (IMyTextPanel display in displays) {
-        if (display.CustomData != "action_sequence") {
-            continue;
-        }
-        string actionLogHeader = display.GetText().Split('\n')[0];
-        string actionLogHeaderDroneName = actionLogHeader.Split(' ')[0];
-        string actionLogTitle = actionLogHeader.Split(' ')[1];
+    bool foundDroneStatus = false;
 
-        if (actionLogHeaderDroneName != droneName) {
+    for (int i = 0; i < statuses.Count; i++) {
+        if (statuses[i].droneName != droneName) {
             continue;
         }
 
-        if (actionLogTitle == "action_sequence_log") {
-            string[] actionSequenceLog = display.GetText().Split('\n');
-            string updatedLog = actionSequenceLog[0];
-            updatedLog += "\n" + utcNow + " " + newEntry;
-            for (int i = 1; i < actionSequenceLog.Length; i++) {
-                if (i > droneMaxLogSize) {
-                    break;
-                }
-                updatedLog += "\n" + actionSequenceLog[i];
+        string[] commandLog = statuses[i].commandLog.Split('\n');
+        string updatedLog = utcNow + " " + newEntry;
+        for (int c = 0; c < commandLog.Length; c++) {
+            if (c > droneMaxLogSize) {
+                break;
             }
-            display.WriteText(updatedLog);
+            updatedLog += "\n" + commandLog[c];
         }
+        droneStatus status = statuses[i];
+        status.commandLog = updatedLog;
+        statuses[i] = status;
+        foundDroneStatus = true;
+        break;
     }
+
+    if (foundDroneStatus == false) {
+        droneStatus status = new droneStatus();
+        status.droneName = droneName;
+        status.commandLog = utcNow + " " + newEntry;
+        statuses.Add(status);
+    }
+
+    return statuses;
 }
 
 public Program()
@@ -382,7 +410,7 @@ public void Main(string argument, UpdateType updateSource)
             }
 
             string actionSequenceDisplayText = display.GetText();
-            if (actionSequenceDisplayText.Split('\n')[0] == Me.CustomData + " action_sequence") {
+            if (actionSequenceDisplayText.Split('\n')[0] == selectedDrone + " action_sequence") {
                 List<string> actionSequence = new List<string>(actionSequenceDisplayText.Split('\n'));
                 if (actionSequence.Count < 2) {
                     continue;
@@ -391,12 +419,14 @@ public void Main(string argument, UpdateType updateSource)
                     continue;
                 }
                 argument = actionSequence[1];
-                setActionLog(selectedDrone, argument, displays);
+                droneStatusList = addCommandLogEntry(selectedDrone, argument, droneStatusList);
                 actionSequence.RemoveAt(1);
                 display.WriteText(String.Join("\n", actionSequence.ToArray()));
             }
         }
     }
+
+    setCommandLogDisplays(selectedDrone, droneStatusList, displays);
 
     if (argument == null || argument.Trim() == "") {
         Echo("No argument and no action_sequence, stopping");
@@ -557,8 +587,8 @@ public void Main(string argument, UpdateType updateSource)
                 }
 
                 string actionSequenceDisplayText = display.GetText();
-                if (actionSequenceDisplayText.Split('\n')[0] == Me.CustomData + " action_sequence") {
-                    display.WriteText(Me.CustomData + " action_sequence\n" + getActionSequenceFromDisplay(selectedOption, displays));
+                if (actionSequenceDisplayText.Split('\n')[0] == selectedDrone + " action_sequence") {
+                    display.WriteText(selectedDrone + " action_sequence\n" + getActionSequenceFromDisplay(selectedOption, displays));
                 }
             }
         }
