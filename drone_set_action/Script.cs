@@ -205,7 +205,67 @@ public void setCommandLogDisplays (string droneName, List<droneStatus> statuses,
     }  
 }
 
-public string getActionSequenceFromDisplay (string actionSequenceTitle, List<IMyTextPanel> displays) {
+public List<droneStatus> addCommandSequence (string droneName, List<droneStatus> statuses, string commandSequence) {
+    for (int i = 0; i < statuses.Count; i++) {
+        if (statuses[i].droneName == droneName) {
+            droneStatus status = new droneStatus();
+            status = statuses[i];
+            status.commandSequence += "\n" + commandSequence;
+            break;
+        }
+    }
+    return statuses;
+}
+
+public List<droneStatus> setCommandSequence (string droneName, string commandSequence, List<droneStatus> statuses) {
+    for (int i = 0; i < statuses.Count; i++) {
+        if (statuses[i].droneName == droneName) {
+            droneStatus status = new droneStatus();
+            status = statuses[i];
+            status.commandSequence = commandSequence;
+            break;
+        }
+    }
+    return statuses;
+}
+
+public string getCommandSequence (string droneName, List<droneStatus> statuses) {
+    for (int i = 0; i < statuses.Count; i++) {
+        if (statuses[i].droneName == droneName) {
+            return statuses[i].commandSequence;
+        }
+    }
+    return "";
+}
+
+public List<droneStatus> clearCommandSequence (string droneName, List<droneStatus> statuses) {
+    for (int i = 0; i < statuses.Count; i++) {
+        if (statuses[i].droneName == droneName) {
+            droneStatus status = new droneStatus();
+            status = statuses[i];
+            status.commandSequence = "";
+            break;
+        }
+    }
+    return statuses;
+}
+
+public void setCommandSequenceDisplays (string droneName, List<droneStatus> statuses, List<IMyTextPanel> displays) {
+    foreach (IMyTextPanel display in displays) {
+        if (display.CustomData != droneName + "_command_sequence") {
+            continue;
+        }
+
+        foreach (droneStatus status in statuses) {
+            if (status.droneName != droneName) {
+                continue;
+            }
+            display.WriteText(droneName + " Command Sequence\n" + status.commandLog);
+        }
+    }  
+}
+
+public string getCommandSequenceFromDisplay (string commandSequenceTitle, List<IMyTextPanel> displays) {
     string actionsOnly = "";
     foreach (IMyTextPanel display in displays) {
         if (display.CustomData != "action_sequence") {
@@ -213,7 +273,7 @@ public string getActionSequenceFromDisplay (string actionSequenceTitle, List<IMy
         }
         string actionSequenceHeader = display.GetText().Split('\n')[0];
         string actionSequenceHeaderTitle = actionSequenceHeader.Split(' ')[1];
-        if (actionSequenceTitle == actionSequenceHeaderTitle) {
+        if (commandSequenceTitle == actionSequenceHeaderTitle) {
             string[] actionSequence = display.GetText().Split('\n');
             for (int i = 1; i < actionSequence.Length; i++) {
                 actionsOnly += actionSequence[i] + "\n";
@@ -247,19 +307,6 @@ public string getUndockMessage (List<IMyTextPanel> displays) {
         
     }
     return message;
-}
-
-public void clearActionSequenceDisplay (string droneName, List<IMyTextPanel> displays) {
-    foreach (IMyTextPanel display in displays) {
-        if (display.CustomData != "action_sequence") {
-            continue;
-        }
-
-        string actionSequenceDisplayText = display.GetText();
-        if (actionSequenceDisplayText.Split('\n')[0] == droneName + " action_sequence") {
-            display.WriteText(actionSequenceDisplayText.Split('\n')[0]);
-        }
-    }
 }
 
 public List<droneStatus> addCommandLogEntry (string droneName, string newEntry, List<droneStatus> statuses) {
@@ -404,28 +451,15 @@ public void Main(string argument, UpdateType updateSource)
     }
 
     if ((argument == null || argument.Trim() == "") && lastMessageData != "") {
-        foreach (IMyTextPanel display in displays) {
-            if (display.CustomData != "action_sequence") {
-                continue;
-            }
-
-            string actionSequenceDisplayText = display.GetText();
-            if (actionSequenceDisplayText.Split('\n')[0] == selectedDrone + " action_sequence") {
-                List<string> actionSequence = new List<string>(actionSequenceDisplayText.Split('\n'));
-                if (actionSequence.Count < 2) {
-                    continue;
-                }
-                if (rawTelemetry.actionStatus != "" && rawTelemetry.actionStatus != "CN") {
-                    continue;
-                }
-                argument = actionSequence[1];
-                droneStatusList = addCommandLogEntry(selectedDrone, argument, droneStatusList);
-                actionSequence.RemoveAt(1);
-                display.WriteText(String.Join("\n", actionSequence.ToArray()));
-            }
+        List<string> actionSequence = new List<string>(getCommandSequence(selectedDrone, droneStatusList).Split('\n'));
+        if (actionSequence.Count > 0 && (rawTelemetry.actionStatus == "" || rawTelemetry.actionStatus == "CN")) {
+            droneStatusList = addCommandLogEntry(selectedDrone, actionSequence[1], droneStatusList);
+            actionSequence.RemoveAt(1);
+            setCommandSequence(selectedDrone, String.Join("\n", actionSequence.ToArray()), droneStatusList);
         }
     }
 
+    setCommandSequenceDisplays(selectedDrone, droneStatusList, displays);
     setCommandLogDisplays(selectedDrone, droneStatusList, displays);
 
     if (argument == null || argument.Trim() == "") {
@@ -567,7 +601,7 @@ public void Main(string argument, UpdateType updateSource)
     if (action == "select_option") {
         if (displayScreen == 3) {
             if (selectedOption == "Clear Seq") {
-                clearActionSequenceDisplay(selectedDrone, displays);
+                clearCommandSequence(selectedDrone, droneStatusList);
             }
             
             if (selectedOption == "Undock") {
@@ -581,16 +615,7 @@ public void Main(string argument, UpdateType updateSource)
             }
         }
         if (displayScreen == 4) {
-            foreach (IMyTextPanel display in displays) {
-                if (display.CustomData != "action_sequence") {
-                    continue;
-                }
-
-                string actionSequenceDisplayText = display.GetText();
-                if (actionSequenceDisplayText.Split('\n')[0] == selectedDrone + " action_sequence") {
-                    display.WriteText(selectedDrone + " action_sequence\n" + getActionSequenceFromDisplay(selectedOption, displays));
-                }
-            }
+            droneStatusList = addCommandSequence(selectedDrone, droneStatusList, getCommandSequenceFromDisplay(selectedOption, displays));
         }
     }
 
