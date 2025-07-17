@@ -220,9 +220,9 @@ public List<droneStatus> addCommandSequence (string droneName, List<droneStatus>
     bool foundDroneStatus = false;
     for (int i = 0; i < statuses.Count; i++) {
         if (statuses[i].droneName == droneName) {
-            Echo("2");
             droneStatus status = statuses[i];
             status.commandSequence += "\n" + commandSequence;
+            status.commandSequence = status.commandSequence.Trim();
             statuses[i] = status;
             foundDroneStatus = true;
             break;
@@ -232,7 +232,7 @@ public List<droneStatus> addCommandSequence (string droneName, List<droneStatus>
     if (!foundDroneStatus) {
         droneStatus status = new droneStatus();
         status.droneName = droneName;
-        status.commandSequence = commandSequence;
+        status.commandSequence = commandSequence.Trim();
         status.commandLog = "";
         statuses.Add(status);
     }
@@ -354,17 +354,15 @@ public List<droneStatus> addCommandLogEntry (string droneName, string newEntry, 
             continue;
         }
 
-        Echo("here1");
         string[] commandLog = statuses[i].commandLog.Split('\n');
         string updatedLog = utcNow + " " + newEntry;
-        Echo("here2");
         for (int c = 0; c < commandLog.Length; c++) {
             if (c > droneMaxLogSize) {
                 break;
             }
             updatedLog += "\n" + commandLog[c];
         }
-        Echo("here3");
+
         droneStatus status = statuses[i];
         status.commandLog = updatedLog;
         statuses[i] = status;
@@ -372,7 +370,7 @@ public List<droneStatus> addCommandLogEntry (string droneName, string newEntry, 
         break;
     }
 
-    if (foundDroneStatus == false) {
+    if (!foundDroneStatus) {
         droneStatus status = new droneStatus();
         status.droneName = droneName;
         status.commandSequence = "";
@@ -490,6 +488,7 @@ public void Main(string argument, UpdateType updateSource)
         List<string> commandSequence = new List<string>(getCommandSequence(selectedDrone, droneStatusList).Split('\n'));
         if (commandSequence.Count > 0 && commandSequence[0] != "" && (rawTelemetry.actionStatus == "" || rawTelemetry.actionStatus == "CN")) {
             droneStatusList = addCommandLogEntry(selectedDrone, commandSequence[0], droneStatusList);
+            argument = commandSequence[0];
             commandSequence.RemoveAt(0);
             setCommandSequence(selectedDrone, String.Join("\n", commandSequence.ToArray()), droneStatusList);
         }
