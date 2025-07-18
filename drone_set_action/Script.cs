@@ -102,10 +102,10 @@ public string getNextDroneName (string droneName, List<droneTelemetry> drones) {
         return "";
     }
 
-    for (int i = 0; i < drones.Count; i++) {
+    for (int i = 0; i < drones.Count - 1; i++) {
         if (drones[i].droneName == droneName) {
-            int nextDrone = i++;
-            if (nextDrone > drones.Count) {
+            int nextDrone = i + 1;
+            if (nextDrone > drones.Count - 1) {
                 nextDrone = 0;
             }
             return drones[nextDrone].droneName;
@@ -399,21 +399,21 @@ public void Main(string argument, UpdateType updateSource)
         Echo("No custom data value, stopping");
         return;
     }
+    Echo(droneTelemetryList.Count.ToString());
     string controllerName = Me.CustomData;
     
     string[] displayScreenText = new string[maxDisplayScreens];
-    string lastMessageData = "";
 
     while (broadcastListener.HasPendingMessage) {
         MyIGCMessage igcMessage = broadcastListener.AcceptMessage();
         if (igcMessage.Tag == messageToDroneControllerTag) {
-            lastMessageData = igcMessage.Data.ToString();
+            string messageData = igcMessage.Data.ToString();
+            if (messageData != null && messageData != "") {
+                setDroneTelemetry(messageToDroneTelemetry(messageData), droneTelemetryList);
+            }
         }
     }
 
-    if (lastMessageData != null && lastMessageData != "") {
-        setDroneTelemetry(messageToDroneTelemetry(lastMessageData), droneTelemetryList);
-    }
     droneTelemetry rawTelemetry = getDroneTelemetry(selectedDrone, droneTelemetryList);
 
     List<IMyTextPanel> displays = new List<IMyTextPanel>();
@@ -471,6 +471,18 @@ public void Main(string argument, UpdateType updateSource)
         }
     }
 
+    foreach (IMyTextPanel display in displays) {
+        if (!display.CustomData.StartsWith(controllerName)) {
+            continue;
+        }
+
+        string[] customDataParts = display.CustomData.Split('_');
+        if (customDataParts.Length == 2) {
+            int screenChoice = Int32.Parse(display.CustomData.Split('_')[1]);
+            display.WriteText(displayScreenText[screenChoice]);
+        }
+    }
+
     List<IMyCockpit> cockpits = new List<IMyCockpit>();
     GridTerminalSystem.GetBlocksOfType<IMyCockpit>(cockpits);
     foreach (IMyCockpit cockpit in cockpits) {
@@ -484,13 +496,18 @@ public void Main(string argument, UpdateType updateSource)
         }
     }
 
-    if ((argument == null || argument.Trim() == "") && lastMessageData != "") {
-        List<string> commandSequence = new List<string>(getCommandSequence(selectedDrone, droneStatusList).Split('\n'));
-        if (commandSequence.Count > 0 && commandSequence[0] != "" && (rawTelemetry.actionStatus == "" || rawTelemetry.actionStatus == "CN")) {
-            droneStatusList = addCommandLogEntry(selectedDrone, commandSequence[0], droneStatusList);
-            argument = commandSequence[0];
-            commandSequence.RemoveAt(0);
-            setCommandSequence(selectedDrone, String.Join("\n", commandSequence.ToArray()), droneStatusList);
+    for (int i = 0; i < droneTelemetryList.Count; i++) {
+        if ((argument == null || argument.Trim() == "") && !droneTelemetryList[i].wasActedOn) {
+            List<string> commandSequence = new List<string>(getCommandSequence(droneTelemetryList[i].droneName, droneStatusList).Split('\n'));
+            if (commandSequence.Count > 0 && commandSequence[0] != "" && (droneTelemetryList[i].actionStatus == "" || droneTelemetryList[i].actionStatus == "CN")) {
+                droneStatusList = addCommandLogEntry(droneTelemetryList[i].droneName, commandSequence[0], droneStatusList);
+                argument = commandSequence[0];
+                commandSequence.RemoveAt(0);
+                setCommandSequence(droneTelemetryList[i].droneName, String.Join("\n", commandSequence.ToArray()), droneStatusList);
+                droneTelemetry telemetry = droneTelemetryList[i];
+                telemetry.wasActedOn = true;
+                droneTelemetryList[i] = telemetry;
+            }
         }
     }
 
@@ -498,7 +515,7 @@ public void Main(string argument, UpdateType updateSource)
     setCommandLogDisplays(controllerName, selectedDrone, droneStatusList, displays);
 
     if (argument == null || argument.Trim() == "") {
-        Echo("No argument and no command_sequence, stopping");
+        //Echo("No argument and no command_sequence, stopping");
         return;
     }
 
