@@ -7,7 +7,7 @@ double degreesOffCenter = .1;
 int rpmReduction = 16;
 int safeMiningVelocity = 2;
 string powerMode = "?";
-float[] downSensorDynamicDistances = {50, 45, 40, 35, 30, 25, 20, 15, 10, 5};
+float[] downSensorDynamicDistances = {50, 40, 30, 25, 20, 15, 12, 9, 7, 5};
 bool[] downSensorDynamicDetections = new bool[10];
 Vector3D orientDownTowards;
 Vector3D orientForwardTowards;
@@ -15,7 +15,7 @@ bool useOrientTowards;
 Vector3D dockingPosition;
 Vector3D miningPosition;
 float safeUpPercentage = .0001f;
-int safeUndockVelocity = 5;
+int safeUndockVelocity = 4;
 int safeDockVelocity = 3;
 
 public Program() {
@@ -670,7 +670,7 @@ public void Main(string argument, UpdateType updateSource) {
         }
         else if (currentAction == "DK"
             && remoteControls[c].GetShipVelocities().LinearVelocity.Length() < safeDockVelocity
-            && downSensorDynamicDetections[downSensorDynamicDetections.Length - 2] == false) {
+            && downSensorDynamicDetections[downSensorDynamicDetections.Length - 4] == false) {
             setDownThrustersThrustOverride(1);
         }
         else if (currentAction == "WP" && remoteControls[c].IsAutoPilotEnabled == false) {

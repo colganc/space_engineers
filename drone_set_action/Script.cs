@@ -39,6 +39,31 @@ public struct droneStatus {
 }
 List<droneStatus> droneStatusList = new List<droneStatus>();
 
+public struct droneMessage {
+    public droneMessage (string initDroneName, string initMessage) {
+        droneName = initDroneName;
+        message = initMessage;
+    }
+    public string droneName { get; set; }
+    public string message { get; set; }
+}
+
+public struct droneCommand {
+    public droneCommand (string argument) {
+        name = null;
+        value = null;
+        string[] splitArgument = argument.Split(' ');
+        if (splitArgument.Length >= 1) {
+            name = splitArgument[0];
+        }
+        if (splitArgument.Length >= 2) {
+            value = splitArgument[1];
+        }
+    }
+    public string name { get; set; }
+    public string value { get; set; }
+}
+
 public droneTelemetry messageToDroneTelemetry (string message) {
     string[] messageData = message.Split(',');
 
@@ -315,13 +340,37 @@ public string getCommandSequenceFromDisplay (string commandSequenceTitle, List<I
     return actionsOnly;
 }
 
-public string getUndockMessage (List<IMyTextPanel> displays) {
-    string message = "";
-    foreach (IMyTextPanel display in displays) {
-        if (display.CustomData != "Dock1") {
-            continue;
+public droneMessage getDroneCommandMessage(string droneName, droneCommand command, List<IMyTextPanel> displays) {
+    if (command.name == "waypoint") {
+        string message = "waypoint";
+
+        if (command.value != "home") {
+            message += " " + command.value.Split(':')[2];
+            message += "," + command.value.Split(':')[3];
+            message += "," + command.value.Split(':')[4];
+            message += "," + command.value.Split(':')[1];
         }
-        
+        else {    
+            foreach (IMyTextPanel display in displays) {
+                if (display.CustomData != "Dock" + droneName[droneName.Length - 1]) {
+                    continue;
+                }
+                Vector3D tempVector = Vector3D.Forward * 100;
+                Vector3D waypoint = Vector3D.Transform(Vector3D.Right * 100, display.WorldMatrix);
+                message += " " + waypoint.X;
+                message += "," + waypoint.Y;
+                message += "," + waypoint.Z;
+                message += ",Dock" + droneName[droneName.Length - 1];
+            }
+        }
+        return new droneMessage(droneName, message);
+    }
+
+    if (command.name == "undock") {
+        return new droneMessage(droneName, getUndockMessage(displays));
+    }
+
+    if (command.name == "dock") {
         Vector3D startWorldPosition = Vector3D.Transform(Vector3D.Zero, Me.WorldMatrix);
         Vector3D endDownWorldPosition = Vector3D.Transform(Vector3D.Down, Me.WorldMatrix);
         Vector3D endForwardWorldPosition = Vector3D.Transform(Vector3D.Forward, Me.WorldMatrix);
@@ -329,15 +378,73 @@ public string getUndockMessage (List<IMyTextPanel> displays) {
         Vector3D forwardWorldDirection = Vector3D.Subtract(endForwardWorldPosition, startWorldPosition);
         downWorldDirection.Normalize();
         forwardWorldDirection.Normalize();
-        message = "undock";
+        string message = "dock";
         message += " " + downWorldDirection.X.ToString();
         message += "," + downWorldDirection.Y.ToString();
         message += "," + downWorldDirection.Z.ToString();
         message += "," + forwardWorldDirection.X.ToString();
         message += "," + forwardWorldDirection.Y.ToString();
         message += "," + forwardWorldDirection.Z.ToString();
-        
+        return new droneMessage(droneName, message);
     }
+
+    if (command.name == "disable_autopilot") {
+        return new droneMessage(droneName, "disable_autopilot");
+    }
+
+    if (command.name == "low_power") {
+        return new droneMessage(droneName, "low_power");
+    }
+
+    if (command.name == "mine") {
+        return new droneMessage(droneName, "mine");
+    }
+
+    if (command.name == "orientation") {
+        string message = "orientation";
+
+        if (command.value == "home") {
+            Vector3D startWorldPosition = Vector3D.Transform(Vector3D.Zero, Me.WorldMatrix);
+            Vector3D endDownWorldPosition = Vector3D.Transform(Vector3D.Down, Me.WorldMatrix);
+            Vector3D endForwardWorldPosition = Vector3D.Transform(Vector3D.Forward, Me.WorldMatrix);
+            Vector3D downWorldDirection = Vector3D.Subtract(endDownWorldPosition, startWorldPosition);
+            Vector3D forwardWorldDirection = Vector3D.Subtract(endForwardWorldPosition, startWorldPosition);
+            downWorldDirection.Normalize();
+            forwardWorldDirection.Normalize();
+            message += " " + downWorldDirection.X.ToString();
+            message += "," + downWorldDirection.Y.ToString();
+            message += "," + downWorldDirection.Z.ToString();
+            message += "," + forwardWorldDirection.X.ToString();
+            message += "," + forwardWorldDirection.Y.ToString();
+            message += "," + forwardWorldDirection.Z.ToString();
+        }
+
+        if (command.value == "natural_gravity") {
+            message += " natural_gravity";
+        }
+        return new droneMessage(droneName, message);
+    }
+
+    return new droneMessage();
+}
+
+
+public string getUndockMessage (List<IMyTextPanel> displays) {
+    string message = "";
+    Vector3D startWorldPosition = Vector3D.Transform(Vector3D.Zero, Me.WorldMatrix);
+    Vector3D endDownWorldPosition = Vector3D.Transform(Vector3D.Down, Me.WorldMatrix);
+    Vector3D endForwardWorldPosition = Vector3D.Transform(Vector3D.Forward, Me.WorldMatrix);
+    Vector3D downWorldDirection = Vector3D.Subtract(endDownWorldPosition, startWorldPosition);
+    Vector3D forwardWorldDirection = Vector3D.Subtract(endForwardWorldPosition, startWorldPosition);
+    downWorldDirection.Normalize();
+    forwardWorldDirection.Normalize();
+    message = "undock";
+    message += " " + downWorldDirection.X.ToString();
+    message += "," + downWorldDirection.Y.ToString();
+    message += "," + downWorldDirection.Z.ToString();
+    message += "," + forwardWorldDirection.X.ToString();
+    message += "," + forwardWorldDirection.Y.ToString();
+    message += "," + forwardWorldDirection.Z.ToString();
     return message;
 }
 
@@ -399,7 +506,7 @@ public void Main(string argument, UpdateType updateSource)
         Echo("No custom data value, stopping");
         return;
     }
-    Echo(droneTelemetryList.Count.ToString());
+
     string controllerName = Me.CustomData;
     
     string[] displayScreenText = new string[maxDisplayScreens];
@@ -414,12 +521,10 @@ public void Main(string argument, UpdateType updateSource)
         }
     }
 
-    droneTelemetry rawTelemetry = getDroneTelemetry(selectedDrone, droneTelemetryList);
-
     List<IMyTextPanel> displays = new List<IMyTextPanel>();
     GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(displays);
 
-    displayScreenText = getDisplayScreenText(rawTelemetry);
+    displayScreenText = getDisplayScreenText(getDroneTelemetry(selectedDrone, droneTelemetryList));
 
     maxDisplayScreenOptions = 0;
 
@@ -434,9 +539,9 @@ public void Main(string argument, UpdateType updateSource)
         }
     }
     if (displayScreen == 3) {
-        maxDisplayScreenOptions = displayScreenCmdOptions.Length + 1;
+        maxDisplayScreenOptions = displayScreenCmdOptions.Length;
     }
-    
+
     foreach (IMyTextPanel display in displays) {
         if (display.CustomData != "action_sequence") {
             continue;
@@ -515,126 +620,24 @@ public void Main(string argument, UpdateType updateSource)
     setCommandLogDisplays(controllerName, selectedDrone, droneStatusList, displays);
 
     if (argument == null || argument.Trim() == "") {
-        //Echo("No argument and no command_sequence, stopping");
         return;
     }
 
-    string message = "";
-    bool sendMessage = false;
+    Queue<droneMessage> messages = new Queue<droneMessage>();
 
-    string action = "";
-    string value = "";
-
-    string[] splitArgument = argument.Split(' ');
-    if (splitArgument.Length >= 1) {
-        action = splitArgument[0];
+    droneCommand command = new droneCommand(argument);
+    droneMessage selectedDroneMessage = getDroneCommandMessage(selectedDrone, command, displays);
+    if (selectedDroneMessage.message != null) {
+        messages.Enqueue(selectedDroneMessage);
     }
 
-    if (splitArgument.Length >= 2) {
-        value = splitArgument[1];
-    }
-
-    if (action == "waypoint") {
-        message = "waypoint";
-
-        if (value != "home") {
-            message += " " + value.Split(':')[2];
-            message += "," + value.Split(':')[3];
-            message += "," + value.Split(':')[4];
-            message += "," + value.Split(':')[1];
-        }
-        else {    
-            foreach (IMyTextPanel display in displays) {
-                if (display.CustomData != "Dock1") {
-                    continue;
-                }
-                Vector3D tempVector = Vector3D.Forward * 100;
-                Vector3D waypoint = Vector3D.Transform(Vector3D.Right * 100, display.WorldMatrix);
-                message += " " + waypoint.X;
-                message += "," + waypoint.Y;
-                message += "," + waypoint.Z;
-                message += ",Dock1";
-            }
-        }
-        sendMessage = true;
-    }
-
-    if (action == "undock") {
-        message = getUndockMessage(displays);
-        sendMessage = true;
-    }
-
-    if (action == "dock") {
-        foreach (IMyTextPanel display in displays) {
-            if (display.CustomData != "Dock1") {
-                continue;
-            }
-            
-            Vector3D startWorldPosition = Vector3D.Transform(Vector3D.Zero, Me.WorldMatrix);
-            Vector3D endDownWorldPosition = Vector3D.Transform(Vector3D.Down, Me.WorldMatrix);
-            Vector3D endForwardWorldPosition = Vector3D.Transform(Vector3D.Forward, Me.WorldMatrix);
-            Vector3D downWorldDirection = Vector3D.Subtract(endDownWorldPosition, startWorldPosition);
-            Vector3D forwardWorldDirection = Vector3D.Subtract(endForwardWorldPosition, startWorldPosition);
-            downWorldDirection.Normalize();
-            forwardWorldDirection.Normalize();
-            message = "dock";
-            message += " " + downWorldDirection.X.ToString();
-            message += "," + downWorldDirection.Y.ToString();
-            message += "," + downWorldDirection.Z.ToString();
-            message += "," + forwardWorldDirection.X.ToString();
-            message += "," + forwardWorldDirection.Y.ToString();
-            message += "," + forwardWorldDirection.Z.ToString();
-            sendMessage = true;
-        }
-    }
-
-    if (action == "disable_autopilot") {
-        message = "disable_autopilot";
-        sendMessage = true;
-    }
-
-    if (action == "low_power") {
-        message = "low_power";
-        sendMessage = true;
-    }
-
-    if (action == "mine") {
-        message = "mine";
-        sendMessage = true;
-    }
-
-    if (action == "orientation") {
-        message = "orientation";
-
-        if (value == "home") {
-            Vector3D startWorldPosition = Vector3D.Transform(Vector3D.Zero, Me.WorldMatrix);
-            Vector3D endDownWorldPosition = Vector3D.Transform(Vector3D.Down, Me.WorldMatrix);
-            Vector3D endForwardWorldPosition = Vector3D.Transform(Vector3D.Forward, Me.WorldMatrix);
-            Vector3D downWorldDirection = Vector3D.Subtract(endDownWorldPosition, startWorldPosition);
-            Vector3D forwardWorldDirection = Vector3D.Subtract(endForwardWorldPosition, startWorldPosition);
-            downWorldDirection.Normalize();
-            forwardWorldDirection.Normalize();
-            message += " " + downWorldDirection.X.ToString();
-            message += "," + downWorldDirection.Y.ToString();
-            message += "," + downWorldDirection.Z.ToString();
-            message += "," + forwardWorldDirection.X.ToString();
-            message += "," + forwardWorldDirection.Y.ToString();
-            message += "," + forwardWorldDirection.Z.ToString();
-        }
-
-        if (value == "natural_gravity") {
-            message += " natural_gravity";
-        }
-        sendMessage = true;
-    }
-
-    if (action == "next_drone") {
+    if (command.name == "next_drone") {
         selectedOption = "";
         displayScreenOption = 0;
         selectedDrone = getNextDroneName(selectedDrone, droneTelemetryList);
     }
 
-    if (action == "next_screen") {
+    if (command.name == "next_screen") {
         selectedOption = "";
         displayScreenOption = 0;
         displayScreen++;
@@ -643,27 +646,25 @@ public void Main(string argument, UpdateType updateSource)
         }
     }
 
-    if (action == "next_option") {
+    if (command.name == "next_option") {
         displayScreenOption++;
         if (displayScreenOption >= maxDisplayScreenOptions) {
             displayScreenOption = 0;
         }
     }
 
-    if (action == "select_option") {
+    if (command.name == "select_option") {
         if (displayScreen == 3) {
             if (selectedOption == "Clear Seq") {
                 droneStatusList = clearCommandSequence(selectedDrone, droneStatusList);
             }
             
             if (selectedOption == "Undock") {
-                message = getUndockMessage(displays);
-                sendMessage = true;
+                messages.Enqueue(new droneMessage(selectedDrone, getUndockMessage(displays)));
             }
 
             if (selectedOption == "Mine") {
-                message = "mine";
-                sendMessage = true;
+                messages.Enqueue(new droneMessage(selectedDrone, "mine"));
             }
         }
         if (displayScreen == 4) {
@@ -671,12 +672,7 @@ public void Main(string argument, UpdateType updateSource)
         }
     }
 
-    if (!sendMessage) {
-        Echo("No message to send");
-        return;
+    foreach (droneMessage message in messages) {
+        IGC.SendBroadcastMessage(message.droneName, message.message, TransmissionDistance.AntennaRelay);
     }
-
-    Echo("Outbound Message - " + selectedDrone);
-    Echo(message);
-    IGC.SendBroadcastMessage(selectedDrone, message, TransmissionDistance.AntennaRelay);
 }
