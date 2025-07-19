@@ -5,7 +5,7 @@ int maxDisplayScreens = 5;
 int displayScreenOption = 0;
 int maxDisplayScreenOptions = 0;
 string selectedOption;
-string[] displayScreenTitles = { "Compact", "Dbg", "Gen", "Cmd", "Seq" };
+string[] displayScreenTitles = { "Compact", "Dbg", "Gen", "Cmd", "Seq", "Gui" };
 int droneMaxLogSize = 15;
 string selectedDrone = "";
 
@@ -161,7 +161,7 @@ public string getDisplayHeader (int headerForDisplayScreen, string droneName) {
     string utcNow = DateTime.UtcNow.ToString(@"hh\:mm\:ss");
     string header = droneName;
     if (headerForDisplayScreen > 0) {
-        for (int i = 1; i < displayScreenTitles.Length; i++) {
+        for (int i = 1; i <= displayScreenTitles.Length; i++) {
             if (i == headerForDisplayScreen) {
                 header += " | " + displayScreenTitles[i].ToUpper();
                 continue;
@@ -173,8 +173,9 @@ public string getDisplayHeader (int headerForDisplayScreen, string droneName) {
     return header;
 }
 
+
 public string[] getDisplayScreenText (droneTelemetry telemetry) {
-    string[] displayScreens = new string[5];
+    string[] displayScreens = new string[maxDisplayScreens];
 
     Vector3D homePosition = Me.GetPosition();
     Vector3D dronePosition;
@@ -488,6 +489,63 @@ public List<droneStatus> addCommandLogEntry (string droneName, string newEntry, 
     return statuses;
 }
 
+public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<droneStatus> statuses, string selectedDrone) {
+    // if (display.ContentType != ContentType.SCRIPT) {
+    //     display.ContentType = ContentType.SCRIPT;
+    //     display.Script = "";
+    // }
+    IMyTextSurface drawingSurface = Me.GetSurface(0);
+    RectangleF viewport;
+    viewport = new RectangleF(
+        (drawingSurface.TextureSize - drawingSurface.SurfaceSize) / 2f,
+        drawingSurface.SurfaceSize
+    );
+
+    var frame = display.DrawFrame();
+    Vector2 position = new Vector2(10, 10); // + viewport.Position;
+    MySprite sprite = new MySprite() {
+        Type = SpriteType.TEXT,
+        Data = DateTime.UtcNow.ToString(@"hh\:mm\:ss"),
+        Position = position,
+        RotationOrScale = .75f,
+        Color = Color.White,
+        Alignment = TextAlignment.LEFT, //TextAlignment.CENTER /* Center the text on the position */,
+        FontId = "White"
+    };
+    frame.Add(sprite);
+
+    position += new Vector2(0, 20);
+
+    foreach (droneTelemetry drone in drones) {
+        sprite = new MySprite() {
+            Type = SpriteType.TEXT,
+            Data = drone.droneName,
+            Position = position,
+            RotationOrScale = 0.75f,
+            Color = Color.White,
+            Alignment = TextAlignment.LEFT,
+            FontId = "White"
+        };
+        if (drone.droneName == selectedDrone) {
+            sprite.Color = Color.Blue;
+        }
+        frame.Add(sprite);
+        position += new Vector2(64, 0);
+    }
+    // sprite = new MySprite() {
+    //     Type = SpriteType.TEXTURE,
+    //     Data = "Arrow",
+    //     Position = viewport.Center,
+    //     Size = viewport.Size,
+    //     Color = drawingSurface.ScriptForegroundColor.Alpha(0.66f),
+    //     Alignment = TextAlignment.CENTER
+    // };
+    // // Add the sprite to the frame
+    // frame.Add(sprite);
+
+    frame.Dispose();
+}
+
 public Program()
 {
     Runtime.UpdateFrequency = UpdateFrequency.Update10;
@@ -584,7 +642,12 @@ public void Main(string argument, UpdateType updateSource)
         string[] customDataParts = display.CustomData.Split('_');
         if (customDataParts.Length == 2) {
             int screenChoice = Int32.Parse(display.CustomData.Split('_')[1]);
-            display.WriteText(displayScreenText[screenChoice]);
+            if (screenChoice == 6) {
+                guiScreen(display, droneTelemetryList, droneStatusList, selectedDrone);
+            }
+            else {
+                display.WriteText(displayScreenText[screenChoice]);
+            }
         }
     }
 
