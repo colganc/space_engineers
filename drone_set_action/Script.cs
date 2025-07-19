@@ -1,11 +1,8 @@
 ﻿IMyBroadcastListener broadcastListener;
 string messageToDroneControllerTag = "drone_controller";
-int displayScreen = 1;
-int maxDisplayScreens = 5;
 int displayScreenOption = 0;
 int maxDisplayScreenOptions = 0;
 string selectedOption;
-string[] displayScreenTitles = { "Compact", "Dbg", "Gen", "Cmd", "Seq", "Gui" };
 int droneMaxLogSize = 15;
 string selectedDrone = "";
 
@@ -112,6 +109,16 @@ public droneTelemetry messageToDroneTelemetry (string message) {
     return messageTelemetry;
 }
 
+public droneStatus getDroneStatus (string droneName, List<droneStatus> drones) {
+    droneStatus status = new droneStatus();
+    foreach (droneStatus drone in drones) {
+        if (drone.droneName == droneName) {
+            status = drone;
+        }
+    }
+    return status;
+}
+
 public droneTelemetry getDroneTelemetry (string droneName, List<droneTelemetry> drones) {
     droneTelemetry telemetry = new droneTelemetry();
     foreach (droneTelemetry drone in drones) {
@@ -154,88 +161,6 @@ public List<droneTelemetry> setDroneTelemetry (droneTelemetry setTelemetry, List
 
     drones.Add(setTelemetry);
     return drones;
-}
-
-
-public string getDisplayHeader (int headerForDisplayScreen, string droneName) {
-    string utcNow = DateTime.UtcNow.ToString(@"hh\:mm\:ss");
-    string header = droneName;
-    if (headerForDisplayScreen > 0) {
-        for (int i = 1; i <= displayScreenTitles.Length; i++) {
-            if (i == headerForDisplayScreen) {
-                header += " | " + displayScreenTitles[i].ToUpper();
-                continue;
-            }
-            header += " | " + displayScreenTitles[i].ToLower();
-        }
-        header += " | " + utcNow;
-    }
-    return header;
-}
-
-
-public string[] getDisplayScreenText (droneTelemetry telemetry) {
-    string[] displayScreens = new string[maxDisplayScreens];
-
-    Vector3D homePosition = Me.GetPosition();
-    Vector3D dronePosition;
-    dronePosition.X = Convert.ToDouble(telemetry.positionX);
-    dronePosition.Y = Convert.ToDouble(telemetry.positionY);
-    dronePosition.Z = Convert.ToDouble(telemetry.positionZ);
-    double distance = Math.Round(Vector3D.Distance(homePosition, dronePosition) / 1000, 1, MidpointRounding.AwayFromZero);
-
-    displayScreens[0] = getDisplayHeader(0, telemetry.droneName);
-    for (int i = 1; i < maxDisplayScreens; i++) {
-        displayScreens[i] = getDisplayHeader(i, telemetry.droneName);
-    }
-
-    displayScreens[0] += "\nI " + telemetry.inventoryStatus;
-    displayScreens[0] += "\nE " + telemetry.energyStatus;
-    displayScreens[0] += "\nD " + distance.ToString();
-    displayScreens[0] += "\nA " + telemetry.actionStatus;
-
-    for (int i = 1; i < maxDisplayScreens; i++) {
-        displayScreens[i] += "\nI:" + telemetry.inventoryStatus;
-        displayScreens[i] += "   E:" + telemetry.energyStatus;
-        displayScreens[i] += "   D:" + distance;
-        displayScreens[i] += "   A:" + telemetry.actionStatus;
-    }
-
-    displayScreens[1] += "\nOrientation: " + telemetry.orientationStatus;
-    displayScreens[1] += "\nVelocity: " + telemetry.shipVelocityStatus + "/" + telemetry.shipMaxVelocityStatus;
-    displayScreens[1] += "\nRoll: " + telemetry.rollAngleStatus;
-    displayScreens[1] += "\nPitch: " + telemetry.pitchAngleStatus;
-    displayScreens[1] += "\nYaw: " + telemetry.yawAngleStatus;
-
-    displayScreens[2] += "\nWaypoint: " + telemetry.waypointNameStatus;
-    displayScreens[2] += "\nDrill: " + telemetry.drillStatus;
-    displayScreens[2] += "\nDrill Sensor: " + telemetry.downSensorCloseStatus;
-    displayScreens[2] += "\nVelocity: " + telemetry.shipVelocityStatus + "/" + telemetry.shipMaxVelocityStatus;
-    displayScreens[2] += "\nSensor: " + telemetry.downSensorDynamicStatus;
-
-    return displayScreens;
-}
-
-public void setCommandLogDisplays (string controllerName, string droneName, List<droneStatus> statuses, List<IMyTextPanel> displays) {
-    foreach (IMyTextPanel display in displays) {
-        if (display.CustomData != controllerName + "_command_log") {
-            continue;
-        }
-
-        bool foundStatus = false;
-        foreach (droneStatus status in statuses) {
-            if (status.droneName != droneName) {
-                continue;
-            }
-            display.WriteText(droneName + " Command Log\n" + status.commandLog);
-            foundStatus = true;
-            break;
-        }
-
-        if (!foundStatus) {
-            display.WriteText(droneName + " Command Log\nNo log found");
-        }
-    }  
 }
 
 public List<droneStatus> addCommandSequence (string droneName, List<droneStatus> statuses, string commandSequence) {
@@ -299,28 +224,6 @@ public List<droneStatus> clearCommandSequence (string droneName, List<droneStatu
         }
     }
     return statuses;
-}
-
-public void setCommandSequenceDisplays (string controllerName, string droneName, List<droneStatus> statuses, List<IMyTextPanel> displays) {
-    foreach (IMyTextPanel display in displays) {
-        if (display.CustomData != controllerName + "_command_sequence") {
-            continue;
-        }
-
-        bool foundStatus = false;
-        foreach (droneStatus status in statuses) {
-            if (status.droneName != droneName) {
-                continue;
-            }
-            display.WriteText(droneName + " Command Sequence\n" + status.commandSequence);
-            foundStatus = true;
-            break;
-        }
-
-        if (!foundStatus) {
-            display.WriteText(droneName + " Command Sequence\nNo command sequence found");
-        }
-    }  
 }
 
 public string getCommandSequenceFromDisplay (string commandSequenceTitle, List<IMyTextPanel> displays) {
@@ -489,11 +392,13 @@ public List<droneStatus> addCommandLogEntry (string droneName, string newEntry, 
     return statuses;
 }
 
-public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<droneStatus> statuses, string selectedDrone) {
+public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<droneStatus> statuses, List<IMyTextPanel> displays, string selectedDrone) {
     // if (display.ContentType != ContentType.SCRIPT) {
     //     display.ContentType = ContentType.SCRIPT;
     //     display.Script = "";
     // }
+    int logWidth = 23;
+
     IMyTextSurface drawingSurface = Me.GetSurface(0);
     RectangleF viewport;
     viewport = new RectangleF(
@@ -517,31 +422,188 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
     position += new Vector2(0, 20);
 
     foreach (droneTelemetry drone in drones) {
+        Vector3D homePosition = Me.GetPosition();
+        Vector3D dronePosition;
+        dronePosition.X = Convert.ToDouble(drone.positionX);
+        dronePosition.Y = Convert.ToDouble(drone.positionY);
+        dronePosition.Z = Convert.ToDouble(drone.positionZ);
+        double distance = Math.Round(Vector3D.Distance(homePosition, dronePosition) / 1000, 1, MidpointRounding.AwayFromZero);
+
+        int offsetX = ;
+        int offsetY = ;
+
+        sprite = new MySprite() {
+            Type = SpriteType.TEXTURE,
+            Data = "Cross",
+            Position = Vector2(viewport.Center.X + offsetX, viewport.Center.X + offsetY),
+            Size = Vector2(20, 20),
+            Color = drawingSurface.ScriptForegroundColor.Alpha(0.66f),
+            Alignment = TextAlignment.CENTER
+        };
+        frame.Add(sprite);
+
+        string boxText =  drone.droneName;
+        boxText += "\nI " + drone.inventoryStatus;
+        boxText += "\nE " + drone.energyStatus;
+        boxText += "\nD " + distance.ToString();
+        boxText += "\nC " + drone.actionStatus;
+        string waypoint = drone.waypointNameStatus;
+        if (waypoint.Length > 6) {
+            waypoint = waypoint.Substring(0, 6) + "...";
+        }
+        boxText += "\nT " + waypoint;
+        boxText += "\nV " + drone.shipVelocityStatus + "/" + drone.shipMaxVelocityStatus;
+        boxText += "\nS " + drone.downSensorDynamicStatus;
+        boxText += "\nA " + drone.drillStatus;
+
         sprite = new MySprite() {
             Type = SpriteType.TEXT,
-            Data = drone.droneName,
+            Data = boxText,
             Position = position,
             RotationOrScale = 0.75f,
-            Color = Color.White,
+            Color = Color.DarkGray,
             Alignment = TextAlignment.LEFT,
             FontId = "White"
         };
         if (drone.droneName == selectedDrone) {
-            sprite.Color = Color.Blue;
+            sprite.Color = Color.White;
+            //sprite.RotationOrScale = 0.8f;
         }
         frame.Add(sprite);
-        position += new Vector2(64, 0);
+        position += new Vector2(112, 0);
     }
-    // sprite = new MySprite() {
-    //     Type = SpriteType.TEXTURE,
-    //     Data = "Arrow",
-    //     Position = viewport.Center,
-    //     Size = viewport.Size,
-    //     Color = drawingSurface.ScriptForegroundColor.Alpha(0.66f),
-    //     Alignment = TextAlignment.CENTER
-    // };
-    // // Add the sprite to the frame
-    // frame.Add(sprite);
+
+    position = new Vector2(10, 240);
+    sprite = new MySprite() {
+        Type = SpriteType.TEXT,
+        Data = "Commands",
+        Position = position,
+        RotationOrScale = 0.75f,
+        Color = Color.White,
+        Alignment = TextAlignment.LEFT,
+        FontId = "White"
+    };
+    frame.Add(sprite);
+
+    int counter = 0;
+    droneStatus status = getDroneStatus(selectedDrone, statuses);
+    position += new Vector2(0, 20);
+    if (status.commandSequence != null) {
+        foreach (string command in status.commandSequence.Split('\n')) {
+            if (counter > 3) {
+                break;
+            }
+            string adjusted = command;
+            if (adjusted.Length > logWidth) {
+                adjusted = adjusted.Substring(0, logWidth - 3) + "...";
+            }
+            sprite = new MySprite() {
+                Type = SpriteType.TEXT,
+                Data = adjusted,
+                Position = position,
+                RotationOrScale = 0.75f,
+                Color = Color.White,
+                Alignment = TextAlignment.LEFT,
+                FontId = "White"
+            };
+            position += new Vector2(0, 20);
+            frame.Add(sprite);
+            counter++;
+        }
+    }
+
+    position = new Vector2(viewport.Center.X + 10, 240);
+    sprite = new MySprite() {
+        Type = SpriteType.TEXT,
+        Data = "Log",
+        Position = position,
+        RotationOrScale = 0.75f,
+        Color = Color.White,
+        Alignment = TextAlignment.LEFT,
+        FontId = "White"
+    };
+    frame.Add(sprite);
+
+    counter = 0;
+    position += new Vector2(0, 20);
+    if (status.commandLog != null) {
+        foreach (string command in status.commandLog.Split('\n')) {
+            if (counter > 3) {
+                break;
+            }
+            string adjusted = command;
+            if (adjusted.Length > logWidth) {
+                adjusted = adjusted.Substring(0, logWidth - 3) + "...";
+            }
+            sprite = new MySprite() {
+                Type = SpriteType.TEXT,
+                Data = adjusted,
+                Position = position,
+                RotationOrScale = 0.75f,
+                Color = Color.White,
+                Alignment = TextAlignment.LEFT,
+                FontId = "White"
+            };
+            position += new Vector2(0, 20);
+            frame.Add(sprite);
+            counter++;
+        }
+    }
+
+    List<string> commands = new List<string>(new[] { "Hold", "Clear Seq", "Undock", "Mine" });
+    foreach (IMyTextPanel commandDisplay in displays) {
+        if (commandDisplay.CustomData != "action_sequence") {
+            continue;
+        }
+        string header = commandDisplay.GetText().Split('\n')[0];
+        if (header.StartsWith("action_sequence ")) {
+            commands.Add(header.Split(' ')[1]);
+        }
+    }
+    maxDisplayScreenOptions = commands.Count;
+    
+    position = new Vector2(10, 340);
+    sprite = new MySprite() {
+        Type = SpriteType.TEXT,
+        Data = "Commands",
+        Position = position,
+        RotationOrScale = 0.75f,
+        Color = Color.White,
+        Alignment = TextAlignment.LEFT,
+        FontId = "White"
+    };
+
+    position += new Vector2(0, 20);
+    int optionCounter = 0;
+    foreach (string command in commands) {
+        sprite = new MySprite() {
+            Type = SpriteType.TEXT,
+            Data = command,
+            Position = position,
+            RotationOrScale = 0.75f,
+            Color = Color.DarkGray,
+            Alignment = TextAlignment.LEFT,
+            FontId = "White"
+        };
+        if (optionCounter == displayScreenOption) {
+            selectedOption = command;
+            sprite.Color = Color.White;
+            sprite.RotationOrScale = 0.8f;
+        }
+        frame.Add(sprite);
+        position += new Vector2(0, 20);
+        optionCounter++;
+    }
+
+    sprite = new MySprite() {
+        Type = SpriteType.TEXTURE,
+        Data = "Arrow",
+        Position = viewport.Center,
+        Size = Vector2(20, 20),
+        Color = drawingSurface.ScriptForegroundColor.Alpha(0.66f),
+        Alignment = TextAlignment.CENTER
+    };
+    frame.Add(sprite);
 
     frame.Dispose();
 }
@@ -566,8 +628,6 @@ public void Main(string argument, UpdateType updateSource)
     }
 
     string controllerName = Me.CustomData;
-    
-    string[] displayScreenText = new string[maxDisplayScreens];
 
     while (broadcastListener.HasPendingMessage) {
         MyIGCMessage igcMessage = broadcastListener.AcceptMessage();
@@ -582,58 +642,6 @@ public void Main(string argument, UpdateType updateSource)
     List<IMyTextPanel> displays = new List<IMyTextPanel>();
     GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(displays);
 
-    displayScreenText = getDisplayScreenText(getDroneTelemetry(selectedDrone, droneTelemetryList));
-
-    maxDisplayScreenOptions = 0;
-
-    string[] displayScreenCmdOptions = { "Hold", "Clear Seq", "Undock", "Mine" };
-    for (int i = 0; i < displayScreenCmdOptions.Length; i++) {
-        if (i == displayScreenOption) {
-            displayScreenText[3] += "\n[ " + displayScreenCmdOptions[i] + " ]";
-            selectedOption = displayScreenCmdOptions[i];
-        }
-        else {
-            displayScreenText[3] += "\n" + displayScreenCmdOptions[i];
-        }
-    }
-    if (displayScreen == 3) {
-        maxDisplayScreenOptions = displayScreenCmdOptions.Length;
-    }
-
-    foreach (IMyTextPanel display in displays) {
-        if (display.CustomData != "action_sequence") {
-            continue;
-        }
-        string actionSequenceHeader = display.GetText().Split('\n')[0];
-        if (actionSequenceHeader.StartsWith("action_sequence ")) {
-            if (displayScreenOption == maxDisplayScreenOptions && displayScreen == 4) {
-                displayScreenText[4] += "\n[ " + actionSequenceHeader.Split(' ')[1] + " ]";
-                selectedOption = actionSequenceHeader.Split(' ')[1];
-            }
-            else {
-                displayScreenText[4] += "\n" + actionSequenceHeader.Split(' ')[1];
-            }
-
-            if (displayScreen == 4) {
-                maxDisplayScreenOptions++;
-            }
-        }
-    }
-
-    if (selectedDrone != "") {
-        foreach (IMyTextPanel display in displays) {
-            if (!display.CustomData.StartsWith(selectedDrone)) {
-                continue;
-            }
-
-            string[] customDataParts = display.CustomData.Split('_');
-            if (customDataParts.Length == 2) {
-                int screenChoice = Int32.Parse(display.CustomData.Split('_')[1]);
-                display.WriteText(displayScreenText[screenChoice]);
-            }
-        }
-    }
-
     foreach (IMyTextPanel display in displays) {
         if (!display.CustomData.StartsWith(controllerName)) {
             continue;
@@ -643,24 +651,8 @@ public void Main(string argument, UpdateType updateSource)
         if (customDataParts.Length == 2) {
             int screenChoice = Int32.Parse(display.CustomData.Split('_')[1]);
             if (screenChoice == 6) {
-                guiScreen(display, droneTelemetryList, droneStatusList, selectedDrone);
+                guiScreen(display, droneTelemetryList, droneStatusList, displays, selectedDrone);
             }
-            else {
-                display.WriteText(displayScreenText[screenChoice]);
-            }
-        }
-    }
-
-    List<IMyCockpit> cockpits = new List<IMyCockpit>();
-    GridTerminalSystem.GetBlocksOfType<IMyCockpit>(cockpits);
-    foreach (IMyCockpit cockpit in cockpits) {
-        if (cockpit.CustomData != controllerName) {
-            continue;
-        }
-
-        for (int c = 0; c < cockpit.SurfaceCount; c++){
-            IMyTextSurface display = cockpit.GetSurface(c);
-            display.WriteText(displayScreenText[displayScreen]);
         }
     }
 
@@ -684,9 +676,6 @@ public void Main(string argument, UpdateType updateSource)
         }
     }
 
-    setCommandSequenceDisplays(controllerName, selectedDrone, droneStatusList, displays);
-    setCommandLogDisplays(controllerName, selectedDrone, droneStatusList, displays);
-
     droneCommand command = new droneCommand(argument);
     droneMessage selectedDroneMessage = getDroneCommandMessage(selectedDrone, command, displays);
     if (selectedDroneMessage.message != null) {
@@ -694,18 +683,7 @@ public void Main(string argument, UpdateType updateSource)
     }
 
     if (command.name == "next_drone") {
-        selectedOption = "";
-        displayScreenOption = 0;
         selectedDrone = getNextDroneName(selectedDrone, droneTelemetryList);
-    }
-
-    if (command.name == "next_screen") {
-        selectedOption = "";
-        displayScreenOption = 0;
-        displayScreen++;
-        if (displayScreen >= maxDisplayScreens) {
-            displayScreen = 1;
-        }
     }
 
     if (command.name == "next_option") {
@@ -716,20 +694,16 @@ public void Main(string argument, UpdateType updateSource)
     }
 
     if (command.name == "select_option") {
-        if (displayScreen == 3) {
-            if (selectedOption == "Clear Seq") {
-                droneStatusList = clearCommandSequence(selectedDrone, droneStatusList);
-            }
-            
-            if (selectedOption == "Undock") {
-                messages.Enqueue(new droneMessage(selectedDrone, getUndockMessage(displays)));
-            }
-
-            if (selectedOption == "Mine") {
-                messages.Enqueue(new droneMessage(selectedDrone, "mine"));
-            }
+        if (selectedOption == "Clear Seq") {
+            droneStatusList = clearCommandSequence(selectedDrone, droneStatusList);
         }
-        if (displayScreen == 4) {
+        else if (selectedOption == "Undock") {
+            messages.Enqueue(new droneMessage(selectedDrone, getUndockMessage(displays)));
+        }
+        else if (selectedOption == "Mine") {
+            messages.Enqueue(new droneMessage(selectedDrone, "mine"));
+        }
+        else {
             droneStatusList = addCommandSequence(selectedDrone, droneStatusList, getCommandSequenceFromDisplay(selectedOption, displays));
         }
     }
