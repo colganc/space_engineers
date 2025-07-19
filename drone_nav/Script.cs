@@ -16,7 +16,7 @@ Vector3D dockingPosition;
 Vector3D miningPosition;
 float safeUpPercentage = .0001f;
 int safeUndockVelocity = 4;
-int safeDockVelocity = 3;
+int safeDockVelocity = 2;
 
 public Program() {
     Runtime.UpdateFrequency = UpdateFrequency.Update10;

@@ -601,12 +601,17 @@ public void Main(string argument, UpdateType updateSource)
         }
     }
 
+    Queue<droneMessage> messages = new Queue<droneMessage>();
+
     for (int i = 0; i < droneTelemetryList.Count; i++) {
-        if ((argument == null || argument.Trim() == "") && !droneTelemetryList[i].wasActedOn) {
+        if (!droneTelemetryList[i].wasActedOn) {
             List<string> commandSequence = new List<string>(getCommandSequence(droneTelemetryList[i].droneName, droneStatusList).Split('\n'));
             if (commandSequence.Count > 0 && commandSequence[0] != "" && (droneTelemetryList[i].actionStatus == "" || droneTelemetryList[i].actionStatus == "CN")) {
                 droneStatusList = addCommandLogEntry(droneTelemetryList[i].droneName, commandSequence[0], droneStatusList);
-                argument = commandSequence[0];
+                droneMessage message = getDroneCommandMessage(droneTelemetryList[i].droneName, new droneCommand(commandSequence[0]), displays);
+                if (message.message != null) {
+                    messages.Enqueue(message);
+                }
                 commandSequence.RemoveAt(0);
                 setCommandSequence(droneTelemetryList[i].droneName, String.Join("\n", commandSequence.ToArray()), droneStatusList);
                 droneTelemetry telemetry = droneTelemetryList[i];
@@ -618,12 +623,6 @@ public void Main(string argument, UpdateType updateSource)
 
     setCommandSequenceDisplays(controllerName, selectedDrone, droneStatusList, displays);
     setCommandLogDisplays(controllerName, selectedDrone, droneStatusList, displays);
-
-    if (argument == null || argument.Trim() == "") {
-        return;
-    }
-
-    Queue<droneMessage> messages = new Queue<droneMessage>();
 
     droneCommand command = new droneCommand(argument);
     droneMessage selectedDroneMessage = getDroneCommandMessage(selectedDrone, command, displays);
