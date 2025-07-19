@@ -7,24 +7,27 @@ int droneMaxLogSize = 15;
 string selectedDrone = "";
 
 public struct droneTelemetry {
-    public string droneName { get; set; }               // messageData[0];
-    public string inventoryStatus { get; set; }         // messageData[4];
-    public string energyStatus { get; set; }            // messageData[5];
-    public string actionStatus { get; set; }            // messageData[6];
-    public string drillStatus { get; set; }             // messageData[7];
-    public string downSensorCloseStatus { get; set; }   // messageData[8];
-    public string powerStatus { get; set; }             // messageData[9];
-    public string rollAngleStatus { get; set; }         // messageData[10];
-    public string pitchAngleStatus { get; set; }        // messageData[11];
-    public string yawAngleStatus { get; set; }          // messageData[17];
-    public string downSensorDynamicStatus { get; set; } // messageData[12];
-    public string shipMaxVelocityStatus { get; set; }   // messageData[13];
-    public string shipVelocityStatus { get; set; }      // messageData[14];
-    public string waypointNameStatus { get; set; }      // messageData[15];
-    public string orientationStatus { get; set; }       // messageData[16];
-    public string positionX { get; set; }               // messageData[1]
-    public string positionY { get; set; }               // messageData[2]
-    public string positionZ { get; set; }               // messageData[3]
+    public string droneName { get; set; }
+    public string inventoryStatus { get; set; }
+    public string energyStatus { get; set; }
+    public string actionStatus { get; set; }
+    public string drillStatus { get; set; }
+    public string downSensorCloseStatus { get; set; }
+    public string powerStatus { get; set; }
+    public string rollAngleStatus { get; set; }
+    public string pitchAngleStatus { get; set; }
+    public string yawAngleStatus { get; set; }
+    public string downSensorDynamicStatus { get; set; }
+    public string shipMaxVelocityStatus { get; set; }
+    public string shipVelocityStatus { get; set; }
+    public string waypointNameStatus { get; set; }
+    public string orientationStatus { get; set; }
+    public string positionX { get; set; }
+    public string positionY { get; set; }
+    public string positionZ { get; set; }
+    public string waypointX { get; set; }
+    public string waypointY { get; set; }
+    public string waypointZ { get; set; }
     public bool wasActedOn { get; set; }
 }
 List<droneTelemetry> droneTelemetryList = new List<droneTelemetry>();
@@ -104,6 +107,9 @@ public droneTelemetry messageToDroneTelemetry (string message) {
     messageTelemetry.positionX = messageData[1];
     messageTelemetry.positionY = messageData[2];
     messageTelemetry.positionZ = messageData[3];
+    messageTelemetry.waypointX = messageData[18];
+    messageTelemetry.waypointY = messageData[19];
+    messageTelemetry.waypointZ = messageData[20];
     messageTelemetry.wasActedOn = false;
 
     return messageTelemetry;
@@ -397,7 +403,6 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
     //     display.ContentType = ContentType.SCRIPT;
     //     display.Script = "";
     // }
-    int logWidth = 23;
 
     IMyTextSurface drawingSurface = Me.GetSurface(0);
     RectangleF viewport;
@@ -406,15 +411,74 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
         drawingSurface.SurfaceSize
     );
 
+    int logWidth = 23;
+    int antennaRange = 3000;
+    int desiredMapWidth = (int)viewport.Width / 6;
+    int metersPerPixel = antennaRange / desiredMapWidth;
+
     var frame = display.DrawFrame();
-    Vector2 position = new Vector2(10, 10); // + viewport.Position;
+    Vector2 position = new Vector2(10, 10);
     MySprite sprite = new MySprite() {
         Type = SpriteType.TEXT,
         Data = DateTime.UtcNow.ToString(@"hh\:mm\:ss"),
         Position = position,
         RotationOrScale = .75f,
         Color = Color.White,
-        Alignment = TextAlignment.LEFT, //TextAlignment.CENTER /* Center the text on the position */,
+        Alignment = TextAlignment.LEFT,
+        FontId = "White"
+    };
+    frame.Add(sprite);
+
+    sprite = new MySprite() {
+        Type = SpriteType.TEXTURE,
+        Data = "Cross",
+        Position = new Vector2(viewport.Center.X * 1.55f, viewport.Center.Y * 1.55f),
+        Size = new Vector2(20, 20),
+        Color = drawingSurface.ScriptForegroundColor.Alpha(0.75f),
+        Alignment = TextAlignment.CENTER
+    };
+    frame.Add(sprite);
+
+    sprite = new MySprite() {
+        Type = SpriteType.TEXT,
+        Data = "+",
+        Position = new Vector2(viewport.Center.X * 1.55f - desiredMapWidth, viewport.Center.Y * 1.55f - desiredMapWidth),
+        RotationOrScale = 0.75f,
+        Color = Color.DarkGray,
+        Alignment = TextAlignment.CENTER,
+        FontId = "White"
+    };
+    frame.Add(sprite);
+
+    sprite = new MySprite() {
+        Type = SpriteType.TEXT,
+        Data = "+",
+        Position = new Vector2(viewport.Center.X * 1.55f + desiredMapWidth, viewport.Center.Y * 1.55f - desiredMapWidth),
+        RotationOrScale = 0.75f,
+        Color = Color.DarkGray,
+        Alignment = TextAlignment.CENTER,
+        FontId = "White"
+    };
+    frame.Add(sprite);
+
+    sprite = new MySprite() {
+        Type = SpriteType.TEXT,
+        Data = "+",
+        Position = new Vector2(viewport.Center.X * 1.55f - desiredMapWidth, viewport.Center.Y * 1.55f + desiredMapWidth),
+        RotationOrScale = 0.75f,
+        Color = Color.DarkGray,
+        Alignment = TextAlignment.CENTER,
+        FontId = "White"
+    };
+    frame.Add(sprite);
+
+    sprite = new MySprite() {
+        Type = SpriteType.TEXT,
+        Data = "+",
+        Position = new Vector2(viewport.Center.X * 1.55f + desiredMapWidth, viewport.Center.Y * 1.55f + desiredMapWidth),
+        RotationOrScale = 0.75f,
+        Color = Color.DarkGray,
+        Alignment = TextAlignment.CENTER,
         FontId = "White"
     };
     frame.Add(sprite);
@@ -427,25 +491,71 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
         dronePosition.X = Convert.ToDouble(drone.positionX);
         dronePosition.Y = Convert.ToDouble(drone.positionY);
         dronePosition.Z = Convert.ToDouble(drone.positionZ);
-        double distance = Math.Round(Vector3D.Distance(homePosition, dronePosition) / 1000, 1, MidpointRounding.AwayFromZero);
+            
+        Vector3D relativeDifference = dronePosition - homePosition;
+        Vector3D bodyPosition = Vector3D.TransformNormal(relativeDifference, MatrixD.Transpose(Me.WorldMatrix));
 
-        int offsetX = ;
-        int offsetY = ;
+        int offsetX = (int)bodyPosition.X / metersPerPixel;
+        int offsetY = (int)bodyPosition.Z / metersPerPixel;
+        float rotation = (float)bodyPosition.Y / 1.5f;
+        if (rotation > 90) {
+            rotation = 90;
+        }
+        if (rotation < -90) {
+            rotation = 90;
+        }
+        rotation += 90 * -1;
 
-        sprite = new MySprite() {
-            Type = SpriteType.TEXTURE,
-            Data = "Cross",
-            Position = Vector2(viewport.Center.X + offsetX, viewport.Center.X + offsetY),
-            Size = Vector2(20, 20),
-            Color = drawingSurface.ScriptForegroundColor.Alpha(0.66f),
-            Alignment = TextAlignment.CENTER
-        };
-        frame.Add(sprite);
+        if (drone.actionStatus != "CN") {
+            sprite = new MySprite() {
+                Type = SpriteType.TEXTURE,
+                Data = "Arrow",
+                Position = new Vector2((viewport.Center.X * 1.55f) + offsetX, (viewport.Center.Y * 1.55f) + offsetY),
+                Size = new Vector2(25, 25),
+                RotationOrScale = rotation * ((float)Math.PI / 180),
+                Color = drawingSurface.ScriptForegroundColor.Alpha(0.75f),
+                Alignment = TextAlignment.CENTER
+            };
+            if (drone.drillStatus == "On") {
+                sprite.Data = "Danger";
+            }
+            if (drone.droneName == selectedDrone) {
+                sprite.Size = new Vector2(30, 30);
+            }
+            frame.Add(sprite);
+        }
+        Echo(drone.droneName + ": " + drone.positionX);
+        Echo(drone.droneName + ": " + drone.waypointX);
+        if (drone.actionStatus == "WP") {
+            Vector3D waypointPosition;
+            
+            waypointPosition.X = Convert.ToDouble(drone.waypointX);
+            waypointPosition.Y = Convert.ToDouble(drone.waypointY);
+            waypointPosition.Z = Convert.ToDouble(drone.waypointZ);
+            
+            relativeDifference = waypointPosition - homePosition;
+            Vector3D waypointBodyPosition = Vector3D.TransformNormal(relativeDifference, MatrixD.Transpose(Me.WorldMatrix));
+            int waypointOffsetX = (int)waypointBodyPosition.X / metersPerPixel;
+            int waypointOffsetY = (int)waypointBodyPosition.Z / metersPerPixel;
+
+            sprite = new MySprite() {
+                Type = SpriteType.TEXTURE,
+                Data = "Cross",
+                Position = new Vector2((viewport.Center.X * 1.55f) + waypointOffsetX, (viewport.Center.Y * 1.55f) + waypointOffsetY),
+                Size = new Vector2(25, 25),
+                Color = drawingSurface.ScriptForegroundColor.Alpha(0.75f),
+                Alignment = TextAlignment.CENTER
+            };
+            if (drone.droneName == selectedDrone) {
+                sprite.Size = new Vector2(30, 30);
+            }
+            frame.Add(sprite);
+        }
 
         string boxText =  drone.droneName;
         boxText += "\nI " + drone.inventoryStatus;
         boxText += "\nE " + drone.energyStatus;
-        boxText += "\nD " + distance.ToString();
+        //boxText += "\nD " + distance.ToString();
         boxText += "\nC " + drone.actionStatus;
         string waypoint = drone.waypointNameStatus;
         if (waypoint.Length > 6) {
@@ -454,7 +564,7 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
         boxText += "\nT " + waypoint;
         boxText += "\nV " + drone.shipVelocityStatus + "/" + drone.shipMaxVelocityStatus;
         boxText += "\nS " + drone.downSensorDynamicStatus;
-        boxText += "\nA " + drone.drillStatus;
+        // boxText += "\nA " + drone.drillStatus;
 
         sprite = new MySprite() {
             Type = SpriteType.TEXT,
@@ -467,13 +577,12 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
         };
         if (drone.droneName == selectedDrone) {
             sprite.Color = Color.White;
-            //sprite.RotationOrScale = 0.8f;
         }
         frame.Add(sprite);
         position += new Vector2(112, 0);
     }
 
-    position = new Vector2(10, 240);
+    position = new Vector2(10, 190);
     sprite = new MySprite() {
         Type = SpriteType.TEXT,
         Data = "Commands",
@@ -512,7 +621,7 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
         }
     }
 
-    position = new Vector2(viewport.Center.X + 10, 240);
+    position = new Vector2(viewport.Center.X + 10, 190);
     sprite = new MySprite() {
         Type = SpriteType.TEXT,
         Data = "Log",
@@ -594,16 +703,6 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
         position += new Vector2(0, 20);
         optionCounter++;
     }
-
-    sprite = new MySprite() {
-        Type = SpriteType.TEXTURE,
-        Data = "Arrow",
-        Position = viewport.Center,
-        Size = Vector2(20, 20),
-        Color = drawingSurface.ScriptForegroundColor.Alpha(0.66f),
-        Alignment = TextAlignment.CENTER
-    };
-    frame.Add(sprite);
 
     frame.Dispose();
 }

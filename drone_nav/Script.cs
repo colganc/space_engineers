@@ -477,6 +477,7 @@ public void Main(string argument, UpdateType updateSource) {
     string shipMaxVelocityStatus = "?";
     string shipVelocityStatus = "?";
     string waypointNameStatus = "?";
+    Vector3D waypointPosition = new Vector3D();
 
     string lastMessage = receiveToMessages();
     processActionRequest(lastMessage);
@@ -555,6 +556,7 @@ public void Main(string argument, UpdateType updateSource) {
         remoteControls[c].GetWaypointInfo(waypoints);
         foreach (MyWaypointInfo waypoint in waypoints) {
             waypointNameStatus = waypoint.Name;
+            waypointPosition = waypoint.Coords;
         }
 
         Vector3D temporaryDownOrientation = orientDownTowards;
@@ -760,6 +762,9 @@ public void Main(string argument, UpdateType updateSource) {
     message += "," + waypointNameStatus;
     message += "," + orientationStatus;
     message += "," + yawAngleStatus;
+    message += "," + waypointPosition.X.ToString();
+    message += "," + waypointPosition.Y.ToString();
+    message += "," + waypointPosition.Z.ToString();
     Echo("Outbound Message - " + messageToDroneControllerTag);
     Echo(message);
     IGC.SendBroadcastMessage(messageToDroneControllerTag, message, TransmissionDistance.AntennaRelay);
