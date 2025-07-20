@@ -398,7 +398,7 @@ public List<droneStatus> addCommandLogEntry (string droneName, string newEntry, 
     return statuses;
 }
 
-public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<droneStatus> statuses, List<IMyTextPanel> displays, string selectedDrone) {
+public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<droneStatus> statuses, List<IMyTextPanel> displays, string selectedDrone, float antennaRadius) {
     // if (display.ContentType != ContentType.SCRIPT) {
     //     display.ContentType = ContentType.SCRIPT;
     //     display.Script = "";
@@ -412,9 +412,11 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
     );
 
     int logWidth = 23;
-    int antennaRange = 3000;
-    int desiredMapWidth = (int)viewport.Width / 6;
-    int metersPerPixel = antennaRange / desiredMapWidth;
+
+    string mapRange = ((int)antennaRadius / 1000).ToString();
+    int desiredMapWidth = (int)viewport.Width / 4;
+    int metersPerPixel = ((int)antennaRadius * 2) / desiredMapWidth;
+    float mapRatio = 1.45f;
 
     var frame = display.DrawFrame();
     Vector2 position = new Vector2(10, 10);
@@ -431,54 +433,64 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
 
     sprite = new MySprite() {
         Type = SpriteType.TEXTURE,
+        Data = "Grid",
+        Position = new Vector2(viewport.Center.X * mapRatio, viewport.Center.Y * mapRatio),
+        Size = new Vector2(desiredMapWidth * 2, desiredMapWidth * 2),
+        Color = drawingSurface.ScriptBackgroundColor.Alpha(1f),
+        Alignment = TextAlignment.CENTER
+    };
+    frame.Add(sprite);
+
+    sprite = new MySprite() {
+        Type = SpriteType.TEXTURE,
         Data = "Cross",
-        Position = new Vector2(viewport.Center.X * 1.55f, viewport.Center.Y * 1.55f),
+        Position = new Vector2(viewport.Center.X * mapRatio, viewport.Center.Y * mapRatio),
         Size = new Vector2(20, 20),
-        Color = drawingSurface.ScriptForegroundColor.Alpha(0.75f),
+        Color = drawingSurface.ScriptForegroundColor.Alpha(1f),
         Alignment = TextAlignment.CENTER
     };
     frame.Add(sprite);
 
     sprite = new MySprite() {
         Type = SpriteType.TEXT,
-        Data = "+",
-        Position = new Vector2(viewport.Center.X * 1.55f - desiredMapWidth, viewport.Center.Y * 1.55f - desiredMapWidth),
-        RotationOrScale = 0.75f,
+        Data = ". -" + mapRange + "k, -" + mapRange + "k",
+        Position = new Vector2(viewport.Center.X * mapRatio - desiredMapWidth, viewport.Center.Y * mapRatio - desiredMapWidth - 10),
+        RotationOrScale = 0.5f,
         Color = Color.DarkGray,
-        Alignment = TextAlignment.CENTER,
+        Alignment = TextAlignment.LEFT,
         FontId = "White"
     };
     frame.Add(sprite);
 
     sprite = new MySprite() {
         Type = SpriteType.TEXT,
-        Data = "+",
-        Position = new Vector2(viewport.Center.X * 1.55f + desiredMapWidth, viewport.Center.Y * 1.55f - desiredMapWidth),
-        RotationOrScale = 0.75f,
+        Data = "+" + mapRange + "k, -" + mapRange + "k .",
+        Position = new Vector2(viewport.Center.X * mapRatio + desiredMapWidth, viewport.Center.Y * mapRatio - desiredMapWidth - 10),
+        RotationOrScale = 0.5f,
         Color = Color.DarkGray,
-        Alignment = TextAlignment.CENTER,
+        Alignment = TextAlignment.RIGHT,
         FontId = "White"
     };
     frame.Add(sprite);
 
     sprite = new MySprite() {
         Type = SpriteType.TEXT,
-        Data = "+",
-        Position = new Vector2(viewport.Center.X * 1.55f - desiredMapWidth, viewport.Center.Y * 1.55f + desiredMapWidth),
-        RotationOrScale = 0.75f,
+        Data = ". -" + mapRange + "k, +" + mapRange + "k",
+        Position = new Vector2(viewport.Center.X * mapRatio - desiredMapWidth, viewport.Center.Y * mapRatio + desiredMapWidth - 10),
+        RotationOrScale = 0.5f,
         Color = Color.DarkGray,
-        Alignment = TextAlignment.CENTER,
+        Alignment = TextAlignment.LEFT,
         FontId = "White"
     };
     frame.Add(sprite);
 
     sprite = new MySprite() {
         Type = SpriteType.TEXT,
-        Data = "+",
-        Position = new Vector2(viewport.Center.X * 1.55f + desiredMapWidth, viewport.Center.Y * 1.55f + desiredMapWidth),
-        RotationOrScale = 0.75f,
+        Data = "+" + mapRange + "k, +" + mapRange + "k .",
+        Position = new Vector2(viewport.Center.X * mapRatio + desiredMapWidth, viewport.Center.Y * mapRatio + desiredMapWidth - 10),
+        RotationOrScale = 0.5f,
         Color = Color.DarkGray,
-        Alignment = TextAlignment.CENTER,
+        Alignment = TextAlignment.RIGHT,
         FontId = "White"
     };
     frame.Add(sprite);
@@ -507,13 +519,14 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
         rotation += 90 * -1;
 
         if (drone.actionStatus != "CN") {
+            Vector2 droneMapPosition = new Vector2((viewport.Center.X * mapRatio) + offsetX, (viewport.Center.Y * mapRatio) + offsetY);
             sprite = new MySprite() {
                 Type = SpriteType.TEXTURE,
                 Data = "Arrow",
-                Position = new Vector2((viewport.Center.X * 1.55f) + offsetX, (viewport.Center.Y * 1.55f) + offsetY),
+                Position = droneMapPosition,
                 Size = new Vector2(25, 25),
                 RotationOrScale = rotation * ((float)Math.PI / 180),
-                Color = drawingSurface.ScriptForegroundColor.Alpha(0.75f),
+                Color = drawingSurface.ScriptForegroundColor.Alpha(1f),
                 Alignment = TextAlignment.CENTER
             };
             if (drone.drillStatus == "On") {
@@ -523,9 +536,64 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
                 sprite.Size = new Vector2(30, 30);
             }
             frame.Add(sprite);
+
+            sprite = new MySprite() {
+                Type = SpriteType.TEXT,
+                Data = drone.shipVelocityStatus + "/" + drone.shipMaxVelocityStatus,
+                Position = droneMapPosition - new Vector2(15, 10),
+                RotationOrScale = 0.5f,
+                Color = Color.DarkGray,
+                Alignment = TextAlignment.RIGHT,
+                FontId = "White"
+            };
+            if (drone.droneName == selectedDrone) {
+                sprite.Color = Color.White;
+            }
+            frame.Add(sprite);
+
+            sprite = new MySprite() {
+                Type = SpriteType.TEXT,
+                Data = drone.downSensorDynamicStatus,
+                Position = droneMapPosition + new Vector2(0, 10),
+                RotationOrScale = 0.5f,
+                Color = Color.DarkGray,
+                Alignment = TextAlignment.CENTER,
+                FontId = "White"
+            };
+            if (drone.droneName == selectedDrone) {
+                sprite.Color = Color.White;
+            }
+            frame.Add(sprite);
+
+            sprite = new MySprite() {
+                Type = SpriteType.TEXT,
+                Data = drone.droneName,
+                Position = droneMapPosition - new Vector2(0, 30),
+                RotationOrScale = 0.5f,
+                Color = Color.DarkGray,
+                Alignment = TextAlignment.CENTER,
+                FontId = "White"
+            };
+            if (drone.droneName == selectedDrone) {
+                sprite.Color = Color.White;
+            }
+            frame.Add(sprite);
+
+            sprite = new MySprite() {
+                Type = SpriteType.TEXT,
+                Data = drone.actionStatus,
+                Position = droneMapPosition + new Vector2(15, -10),
+                RotationOrScale = 0.5f,
+                Color = Color.DarkGray,
+                Alignment = TextAlignment.LEFT,
+                FontId = "White"
+            };
+            if (drone.droneName == selectedDrone) {
+                sprite.Color = Color.White;
+            }
+            frame.Add(sprite);
         }
-        Echo(drone.droneName + ": " + drone.positionX);
-        Echo(drone.droneName + ": " + drone.waypointX);
+
         if (drone.actionStatus == "WP") {
             Vector3D waypointPosition;
             
@@ -538,33 +606,40 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
             int waypointOffsetX = (int)waypointBodyPosition.X / metersPerPixel;
             int waypointOffsetY = (int)waypointBodyPosition.Z / metersPerPixel;
 
+            Vector2 waypointMapPosition = new Vector2((viewport.Center.X * mapRatio) + waypointOffsetX, (viewport.Center.Y * mapRatio) + waypointOffsetY);
             sprite = new MySprite() {
                 Type = SpriteType.TEXTURE,
                 Data = "Cross",
-                Position = new Vector2((viewport.Center.X * 1.55f) + waypointOffsetX, (viewport.Center.Y * 1.55f) + waypointOffsetY),
+                Position = waypointMapPosition,
                 Size = new Vector2(25, 25),
-                Color = drawingSurface.ScriptForegroundColor.Alpha(0.75f),
+                Color = drawingSurface.ScriptForegroundColor.Alpha(1f),
                 Alignment = TextAlignment.CENTER
             };
             if (drone.droneName == selectedDrone) {
                 sprite.Size = new Vector2(30, 30);
             }
             frame.Add(sprite);
+
+            string waypoint = drone.waypointNameStatus;
+            if (waypoint.Length > 7) {
+                waypoint = waypoint.Substring(0, 7) + "...";
+            }
+            sprite = new MySprite() {
+                Type = SpriteType.TEXT,
+                Data = waypoint,
+                Position = waypointMapPosition,
+                RotationOrScale = 0.5f,
+                Color = Color.DarkGray,
+                Alignment = TextAlignment.LEFT,
+                FontId = "White"
+            };
+            frame.Add(sprite);
         }
 
         string boxText =  drone.droneName;
         boxText += "\nI " + drone.inventoryStatus;
         boxText += "\nE " + drone.energyStatus;
-        //boxText += "\nD " + distance.ToString();
-        boxText += "\nC " + drone.actionStatus;
-        string waypoint = drone.waypointNameStatus;
-        if (waypoint.Length > 6) {
-            waypoint = waypoint.Substring(0, 6) + "...";
-        }
-        boxText += "\nT " + waypoint;
-        boxText += "\nV " + drone.shipVelocityStatus + "/" + drone.shipMaxVelocityStatus;
-        boxText += "\nS " + drone.downSensorDynamicStatus;
-        // boxText += "\nA " + drone.drillStatus;
+        // boxText += "\nC " + drone.actionStatus;
 
         sprite = new MySprite() {
             Type = SpriteType.TEXT,
@@ -582,10 +657,10 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
         position += new Vector2(112, 0);
     }
 
-    position = new Vector2(10, 190);
+    position = new Vector2(10, 100);
     sprite = new MySprite() {
         Type = SpriteType.TEXT,
-        Data = "Commands",
+        Data = "Command Queue",
         Position = position,
         RotationOrScale = 0.75f,
         Color = Color.White,
@@ -599,7 +674,7 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
     position += new Vector2(0, 20);
     if (status.commandSequence != null) {
         foreach (string command in status.commandSequence.Split('\n')) {
-            if (counter > 3) {
+            if (counter > 4) {
                 break;
             }
             string adjusted = command;
@@ -621,7 +696,7 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
         }
     }
 
-    position = new Vector2(viewport.Center.X + 10, 190);
+    position = new Vector2(viewport.Center.X + 10, 100);
     sprite = new MySprite() {
         Type = SpriteType.TEXT,
         Data = "Log",
@@ -637,7 +712,7 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
     position += new Vector2(0, 20);
     if (status.commandLog != null) {
         foreach (string command in status.commandLog.Split('\n')) {
-            if (counter > 3) {
+            if (counter > 4) {
                 break;
             }
             string adjusted = command;
@@ -659,7 +734,7 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
         }
     }
 
-    List<string> commands = new List<string>(new[] { "Hold", "Clear Seq", "Undock", "Mine" });
+    List<string> commands = new List<string>(new[] { "Hold", "Clear Seq", "Undock", "Mine", "Ant Rng" });
     foreach (IMyTextPanel commandDisplay in displays) {
         if (commandDisplay.CustomData != "action_sequence") {
             continue;
@@ -671,7 +746,7 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
     }
     maxDisplayScreenOptions = commands.Count;
     
-    position = new Vector2(10, 340);
+    position = new Vector2(10, 280);
     sprite = new MySprite() {
         Type = SpriteType.TEXT,
         Data = "Commands",
@@ -681,6 +756,7 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
         Alignment = TextAlignment.LEFT,
         FontId = "White"
     };
+    frame.Add(sprite);
 
     position += new Vector2(0, 20);
     int optionCounter = 0;
@@ -738,6 +814,17 @@ public void Main(string argument, UpdateType updateSource)
         }
     }
 
+    float antennaRadius = 1000;
+    List<IMyRadioAntenna> antennas = new List<IMyRadioAntenna>();
+    GridTerminalSystem.GetBlocksOfType<IMyRadioAntenna>(antennas);
+    foreach (IMyRadioAntenna antenna in antennas) {
+        if (antenna.CustomData != controllerName) {
+            continue;
+        }
+        
+        antennaRadius = antenna.Radius;
+    }
+
     List<IMyTextPanel> displays = new List<IMyTextPanel>();
     GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(displays);
 
@@ -750,7 +837,7 @@ public void Main(string argument, UpdateType updateSource)
         if (customDataParts.Length == 2) {
             int screenChoice = Int32.Parse(display.CustomData.Split('_')[1]);
             if (screenChoice == 6) {
-                guiScreen(display, droneTelemetryList, droneStatusList, displays, selectedDrone);
+                guiScreen(display, droneTelemetryList, droneStatusList, displays, selectedDrone, antennaRadius);
             }
         }
     }
@@ -801,6 +888,18 @@ public void Main(string argument, UpdateType updateSource)
         }
         else if (selectedOption == "Mine") {
             messages.Enqueue(new droneMessage(selectedDrone, "mine"));
+        }
+        else if (selectedOption == "Ant Rng") {
+            foreach (IMyRadioAntenna antenna in antennas) {
+                if (antenna.CustomData != controllerName) {
+                    continue;
+                }
+                
+                antenna.Radius += 1000;
+                if (antenna.Radius > 5000) {
+                    antenna.Radius = 1000;
+                }
+            }
         }
         else {
             droneStatusList = addCommandSequence(selectedDrone, droneStatusList, getCommandSequenceFromDisplay(selectedOption, displays));
