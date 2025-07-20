@@ -398,7 +398,33 @@ public List<droneStatus> addCommandLogEntry (string droneName, string newEntry, 
     return statuses;
 }
 
-public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<droneStatus> statuses, List<IMyTextPanel> displays, string selectedDrone, float antennaRadius) {
+public List<MyWaypointInfo> getWaypointLibrary (string controllerName) {
+    List<MyWaypointInfo> waypoints = new List<MyWaypointInfo>();
+
+    List<IMyRemoteControl> remoteControls = new List<IMyRemoteControl>();
+    GridTerminalSystem.GetBlocksOfType<IMyRemoteControl>(remoteControls);
+
+    foreach (IMyRemoteControl remoteControl in remoteControls) {
+        if (remoteControl.CustomData != controllerName) {
+            continue;
+        }
+        remoteControl.GetWaypointInfo(waypoints);
+    }
+    return waypoints;
+}
+
+public Vector2 getMapPosition (Vector3D position, int metersPerPixel, float mapRatio, RectangleF viewport) {
+    Vector3D homePosition = Me.GetPosition();
+    Vector3D relativeDifference = position - homePosition;
+    Vector3D bodyPosition = Vector3D.TransformNormal(relativeDifference, MatrixD.Transpose(Me.WorldMatrix));
+    float offsetX = (float)bodyPosition.X / metersPerPixel;
+    float offsetY = (float)bodyPosition.Z / metersPerPixel;
+    Vector2 mapPosition = new Vector2((viewport.Center.X * mapRatio) + offsetX, (viewport.Center.Y * mapRatio) + offsetY);
+
+    return mapPosition;
+}
+
+public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<droneStatus> statuses, List<IMyTextPanel> displays, string selectedDrone, float antennaRadius, string controllerName) {
     // if (display.ContentType != ContentType.SCRIPT) {
     //     display.ContentType = ContentType.SCRIPT;
     //     display.Script = "";
@@ -495,15 +521,43 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
     };
     frame.Add(sprite);
 
+    foreach (MyWaypointInfo waypoint in getWaypointLibrary(controllerName)) {
+        Vector2 waypointMapPosition = getMapPosition(waypoint.Coords, metersPerPixel, mapRatio, viewport);
+        sprite = new MySprite() {
+            Type = SpriteType.TEXTURE,
+            Data = "Cross",
+            Position = waypointMapPosition,
+            Size = new Vector2(15, 15),
+            Color = drawingSurface.ScriptForegroundColor.Alpha(0.5f),
+            Alignment = TextAlignment.CENTER
+        };
+        frame.Add(sprite);
+
+        string waypointName = waypoint.Name;
+        if (waypointName.Length > 8) {
+            waypointName = waypointName.Substring(0, 8) + "...";
+        }
+        sprite = new MySprite() {
+            Type = SpriteType.TEXT,
+            Data = waypointName,
+            Position = waypointMapPosition,
+            RotationOrScale = 0.5f,
+            Color = Color.DarkGray,
+            Alignment = TextAlignment.LEFT,
+            FontId = "White"
+        };
+        frame.Add(sprite);  
+    } 
+
     position += new Vector2(0, 20);
 
     foreach (droneTelemetry drone in drones) {
-        Vector3D homePosition = Me.GetPosition();
         Vector3D dronePosition;
         dronePosition.X = Convert.ToDouble(drone.positionX);
         dronePosition.Y = Convert.ToDouble(drone.positionY);
         dronePosition.Z = Convert.ToDouble(drone.positionZ);
-            
+
+        Vector3D homePosition = Me.GetPosition();
         Vector3D relativeDifference = dronePosition - homePosition;
         Vector3D bodyPosition = Vector3D.TransformNormal(relativeDifference, MatrixD.Transpose(Me.WorldMatrix));
 
@@ -517,9 +571,8 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
             rotation = 90;
         }
         rotation += 90 * -1;
-
+        Vector2 droneMapPosition = new Vector2((viewport.Center.X * mapRatio) + offsetX, (viewport.Center.Y * mapRatio) + offsetY);
         if (drone.actionStatus != "CN") {
-            Vector2 droneMapPosition = new Vector2((viewport.Center.X * mapRatio) + offsetX, (viewport.Center.Y * mapRatio) + offsetY);
             sprite = new MySprite() {
                 Type = SpriteType.TEXTURE,
                 Data = "Arrow",
@@ -594,44 +647,37 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
             frame.Add(sprite);
         }
 
-        if (drone.actionStatus == "WP") {
-            Vector3D waypointPosition;
-            
-            waypointPosition.X = Convert.ToDouble(drone.waypointX);
-            waypointPosition.Y = Convert.ToDouble(drone.waypointY);
-            waypointPosition.Z = Convert.ToDouble(drone.waypointZ);
-            
-            relativeDifference = waypointPosition - homePosition;
-            Vector3D waypointBodyPosition = Vector3D.TransformNormal(relativeDifference, MatrixD.Transpose(Me.WorldMatrix));
-            int waypointOffsetX = (int)waypointBodyPosition.X / metersPerPixel;
-            int waypointOffsetY = (int)waypointBodyPosition.Z / metersPerPixel;
-
-            Vector2 waypointMapPosition = new Vector2((viewport.Center.X * mapRatio) + waypointOffsetX, (viewport.Center.Y * mapRatio) + waypointOffsetY);
+        if (drone.actionStatus == "WP" && drone.droneName == selectedDrone) {
+            Vector3D waypointPosition = new Vector3D(Convert.ToDouble(drone.waypointX), Convert.ToDouble(drone.waypointY), Convert.ToDouble(drone.waypointZ));
+            Vector2 waypointMapPosition = getMapPosition(waypointPosition, metersPerPixel, mapRatio, viewport);
+            Vector2 halfMapPosition = Vector2.Lerp(droneMapPosition, waypointMapPosition, .25f);
             sprite = new MySprite() {
                 Type = SpriteType.TEXTURE,
                 Data = "Cross",
-                Position = waypointMapPosition,
-                Size = new Vector2(25, 25),
+                Position = halfMapPosition,
+                Size = new Vector2(5, 5),
                 Color = drawingSurface.ScriptForegroundColor.Alpha(1f),
                 Alignment = TextAlignment.CENTER
             };
-            if (drone.droneName == selectedDrone) {
-                sprite.Size = new Vector2(30, 30);
-            }
             frame.Add(sprite);
-
-            string waypoint = drone.waypointNameStatus;
-            if (waypoint.Length > 7) {
-                waypoint = waypoint.Substring(0, 7) + "...";
-            }
+            halfMapPosition = Vector2.Lerp(droneMapPosition, waypointMapPosition, .5f);
             sprite = new MySprite() {
-                Type = SpriteType.TEXT,
-                Data = waypoint,
-                Position = waypointMapPosition,
-                RotationOrScale = 0.5f,
-                Color = Color.DarkGray,
-                Alignment = TextAlignment.LEFT,
-                FontId = "White"
+                Type = SpriteType.TEXTURE,
+                Data = "Cross",
+                Position = halfMapPosition,
+                Size = new Vector2(5, 5),
+                Color = drawingSurface.ScriptForegroundColor.Alpha(1f),
+                Alignment = TextAlignment.CENTER
+            };
+            frame.Add(sprite);
+            halfMapPosition = Vector2.Lerp(droneMapPosition, waypointMapPosition, .75f);
+            sprite = new MySprite() {
+                Type = SpriteType.TEXTURE,
+                Data = "Cross",
+                Position = halfMapPosition,
+                Size = new Vector2(5, 5),
+                Color = drawingSurface.ScriptForegroundColor.Alpha(1f),
+                Alignment = TextAlignment.CENTER
             };
             frame.Add(sprite);
         }
@@ -837,7 +883,7 @@ public void Main(string argument, UpdateType updateSource)
         if (customDataParts.Length == 2) {
             int screenChoice = Int32.Parse(display.CustomData.Split('_')[1]);
             if (screenChoice == 6) {
-                guiScreen(display, droneTelemetryList, droneStatusList, displays, selectedDrone, antennaRadius);
+                guiScreen(display, droneTelemetryList, droneStatusList, displays, selectedDrone, antennaRadius, controllerName);
             }
         }
     }
