@@ -451,6 +451,40 @@ public void processActionRequest (string message) {
         setOrientation(value);
     }
 
+    if (action == "unload") {
+        List<IMyCargoContainer> containers = new List<IMyCargoContainer>();
+        GridTerminalSystem.GetBlocksOfType<IMyCargoContainer>(containers);
+        foreach (IMyCargoContainer container in containers) {
+            if (container.CustomData == value) {
+                IMyInventory primaryInventory = container.GetInventory();
+                List<IMyShipConnector> connectors = new List<IMyShipConnector>();
+                GridTerminalSystem.GetBlocksOfType<IMyShipConnector>(connectors);
+                List<MyInventoryItem> items = new List<MyInventoryItem>();
+                foreach (IMyShipConnector connector in connectors) {
+                    if (connector.CustomData != droneName) {
+                        continue;
+                    }
+                    IMyInventory inventory = connector.GetInventory();
+                    inventory.GetItems(items);
+                    foreach (MyInventoryItem item in items) {
+                        inventory.TransferItemTo(primaryInventory, item);
+                    }
+                }
+
+                foreach (IMyCargoContainer droneContainer in containers) {
+                    if (droneContainer.CustomData != droneName) {
+                        continue;
+                    }
+                    IMyInventory droneInventory = droneContainer.GetInventory();
+                    droneInventory.GetItems(items);
+                    foreach (MyInventoryItem item in items) {
+                        droneInventory.TransferItemTo(primaryInventory, item);
+                    }
+                }
+            }
+        }
+    }
+
     return;
 }
 
