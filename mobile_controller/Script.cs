@@ -55,17 +55,28 @@ public void Main(string argument, UpdateType updateSource) {
     //     displayText += "\n" + status.name + ": " + status.DisassembleRatio.ToString();
     // }
 
-    List<IMyCargoContainer> cargoContainers = new List<IMyCargoContainer>();
-    GridTerminalSystem.GetBlocksOfType<IMyCargoContainer>(cargoContainers);
+    float currentStoredPower = 0;
+    float maxStoredPower = 0;
+    List<IMyBatteryBlock> batteries = new List<IMyBatteryBlock>();
+    GridTerminalSystem.GetBlocksOfType<IMyBatteryBlock>(batteries);
+    foreach (IMyBatteryBlock battery in batteries) {
+        if (battery.CustomData != Me.CustomData) {
+            continue;
+        }
+        currentStoredPower += battery.CurrentStoredPower;
+        maxStoredPower += battery.MaxStoredPower;
+    }
+    string storedPowerPercent = Math.Round((currentStoredPower / maxStoredPower) * 100, 0, MidpointRounding.AwayFromZero).ToString();
+    displayText += "\nEnergy: " + storedPowerPercent + "%    " + Math.Round(currentStoredPower, 2).ToString() + "/" + maxStoredPower.ToString() + " MWh";
 
     long currentVolume = 0;
     long maxVolume = 0;
-
+    List<IMyCargoContainer> cargoContainers = new List<IMyCargoContainer>();
+    GridTerminalSystem.GetBlocksOfType<IMyCargoContainer>(cargoContainers);
     foreach (IMyCargoContainer cargoContainer in cargoContainers) {
         if (cargoContainer.CustomData != Me.CustomData) {
             continue;
         }
-
         IMyInventory cargoContainerInventory = cargoContainer.GetInventory();
         currentVolume += cargoContainerInventory.CurrentVolume.RawValue;
         maxVolume += cargoContainerInventory.MaxVolume.RawValue;
@@ -75,31 +86,70 @@ public void Main(string argument, UpdateType updateSource) {
     string cargoContainersPercent = Math.Round(intermediate * 100, 0, MidpointRounding.AwayFromZero).ToString();
     displayText += "\nContainer Capacity: " + cargoContainersPercent + "%    " + (currentVolume / 1000000).ToString() + "/" + (maxVolume / 1000000).ToString() + " tonnes";
 
-    List<IMyAssembler> assemblers = new List<IMyAssembler>();
-    GridTerminalSystem.GetBlocksOfType<IMyAssembler>(assemblers);
-    foreach (IMyAssembler assembler in assemblers) {
-        if (assembler.CustomData != Me.CustomData) {
-            continue;
-        }
-
-        displayText += "\nAssembler...";
-        displayText += "\n    Producing: " + assembler.IsProducing.ToString();
-        displayText += "\n    Empty Queue: " + assembler.IsQueueEmpty.ToString();
-        displayText += "\n    Working: " + assembler.IsWorking.ToString();
-    }
-
+    displayText += "\nFactory...";
     List<IMyRefinery> refineries = new List<IMyRefinery>();
     GridTerminalSystem.GetBlocksOfType<IMyRefinery>(refineries);
     foreach (IMyRefinery refinery in refineries) {
         if (refinery.CustomData != Me.CustomData) {
             continue;
         }
-
-        displayText += "\nRefinery...";
-        displayText += "\n    Producing: " + refinery.IsProducing.ToString();
-        displayText += "\n    Empty Queue: " + refinery.IsQueueEmpty.ToString();
-        displayText += "\n    Working: " + refinery.IsWorking.ToString();
+        displayText += "\n    " + refinery.DisplayNameText + "    Producing: " + refinery.IsProducing.ToString();
     }
+
+    List<IMyAssembler> assemblers = new List<IMyAssembler>();
+    GridTerminalSystem.GetBlocksOfType<IMyAssembler>(assemblers);
+    foreach (IMyAssembler assembler in assemblers) {
+        if (assembler.CustomData != Me.CustomData) {
+            continue;
+        }
+        displayText += "\n    " + assembler.DisplayNameText + "    Producing: " + assembler.IsProducing.ToString();
+    }
+
+    float maxThrustUp = 0;
+    float maxThrustDown = 0;
+    float maxThrustForward = 0;
+    float maxThrustBackward = 0;
+    float maxThrustLeft = 0;
+    float maxThrustRight = 0;
+    List<IMyThrust> thrusters = new List<IMyThrust>();
+    GridTerminalSystem.GetBlocksOfType<IMyThrust>(thrusters);
+    foreach (IMyThrust thruster in thrusters) {
+        if (thruster.CustomData != Me.CustomData) {
+            continue;
+        }
+
+        if (thruster.GridThrustDirection == Vector3I.Up) {
+            maxThrustUp += thruster.MaxThrust;
+        }
+
+        if (thruster.GridThrustDirection == Vector3I.Down) {
+            maxThrustDown += thruster.MaxThrust;
+        }
+
+        if (thruster.GridThrustDirection == Vector3I.Forward) {
+            maxThrustForward += thruster.MaxThrust;
+        }
+
+        if (thruster.GridThrustDirection == Vector3I.Backward) {
+            maxThrustBackward += thruster.MaxThrust;
+        }
+
+        if (thruster.GridThrustDirection == Vector3I.Left) {
+            maxThrustLeft += thruster.MaxThrust;
+        }
+
+        if (thruster.GridThrustDirection == Vector3I.Right) {
+            maxThrustRight += thruster.MaxThrust;
+        }
+        
+    }
+    displayText += "\nThrust...";
+    displayText += "\n    Up Max: " + (maxThrustUp / 1000).ToString() + " kn";
+    displayText += "\n    Down Max: " + (maxThrustDown / 1000).ToString() + " kn";
+    displayText += "\n    Forward Max: " + (maxThrustForward / 1000).ToString() + " kn";
+    displayText += "\n    Backward Max: " + (maxThrustBackward / 1000).ToString() + " kn";
+    displayText += "\n    Left Max: " + (maxThrustLeft / 1000).ToString() + " kn";
+    displayText += "\n    Right Max: " + (maxThrustRight / 1000).ToString() + " kn";
 
     List<IMyTextPanel> displays = new List<IMyTextPanel>();
     GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(displays);

@@ -444,9 +444,9 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
     int logWidth = 23;
 
     string mapRange = ((int)antennaRadius / 1000).ToString();
-    int desiredMapWidth = (int)viewport.Width / 4;
+    int desiredMapWidth = (int)((double)viewport.Width / 3.5);
     int metersPerPixel = (int)antennaRadius / desiredMapWidth;
-    float mapRatio = 1.45f;
+    float mapRatio = 1.40f;
 
     var frame = display.DrawFrame();
     Vector2 position = new Vector2(10, 10);
@@ -601,7 +601,7 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
             sprite = new MySprite() {
                 Type = SpriteType.TEXT,
                 Data = drone.shipVelocityStatus + "/" + drone.shipMaxVelocityStatus,
-                Position = droneMapPosition - new Vector2(15, 10),
+                Position = droneMapPosition - new Vector2(15, 15),
                 RotationOrScale = 0.5f,
                 Color = Color.DarkGray,
                 Alignment = TextAlignment.RIGHT,
@@ -643,7 +643,21 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
             sprite = new MySprite() {
                 Type = SpriteType.TEXT,
                 Data = drone.actionStatus,
-                Position = droneMapPosition + new Vector2(15, -10),
+                Position = droneMapPosition + new Vector2(15, -15),
+                RotationOrScale = 0.5f,
+                Color = Color.DarkGray,
+                Alignment = TextAlignment.LEFT,
+                FontId = "White"
+            };
+            if (drone.droneName == selectedDrone) {
+                sprite.Color = Color.White;
+            }
+            frame.Add(sprite);
+
+            sprite = new MySprite() {
+                Type = SpriteType.TEXT,
+                Data = "I " + drone.inventoryStatus,
+                Position = droneMapPosition + new Vector2(15, 0),
                 RotationOrScale = 0.5f,
                 Color = Color.DarkGray,
                 Alignment = TextAlignment.LEFT,
@@ -691,7 +705,6 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
         }
 
         string boxText =  drone.droneName;
-        boxText += "\nI " + drone.inventoryStatus;
         boxText += "\nE " + drone.energyStatus;
 
         sprite = new MySprite() {
@@ -710,7 +723,7 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
         position += new Vector2(112, 0);
     }
 
-    position = new Vector2(10, 100);
+    position = new Vector2(10, 80);
     sprite = new MySprite() {
         Type = SpriteType.TEXT,
         Data = "Command Queue",
@@ -749,7 +762,7 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
         }
     }
 
-    position = new Vector2(viewport.Center.X + 10, 100);
+    position = new Vector2(viewport.Center.X + 10, 80);
     sprite = new MySprite() {
         Type = SpriteType.TEXT,
         Data = "Log",
