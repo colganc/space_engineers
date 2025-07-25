@@ -260,7 +260,7 @@ public droneMessage getDroneCommandMessage(string droneName, droneCommand comman
             message += "," + command.value.Split(':')[4];
             message += "," + command.value.Split(':')[1];
         }
-        else {    
+        else {
             foreach (IMyTextPanel display in displays) {
                 if (display.CustomData != "Dock" + droneName[droneName.Length - 1]) {
                     continue;
@@ -295,6 +295,17 @@ public droneMessage getDroneCommandMessage(string droneName, droneCommand comman
         message += "," + forwardWorldDirection.X.ToString();
         message += "," + forwardWorldDirection.Y.ToString();
         message += "," + forwardWorldDirection.Z.ToString();
+
+        foreach (IMyTextPanel display in displays) {
+            if (display.CustomData != "Dock" + droneName[droneName.Length - 1]) {
+                continue;
+            }
+            Vector3D waypoint = Vector3D.Transform(Vector3D.Right, display.WorldMatrix);
+            message += "," + waypoint.X.ToString();
+            message += "," + waypoint.Y.ToString();
+            message += "," + waypoint.Z.ToString();
+        }
+
         return new droneMessage(droneName, message);
     }
 
@@ -706,12 +717,13 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
 
         string boxText =  drone.droneName;
         boxText += "\nE " + drone.energyStatus;
+        boxText += "\nI " + drone.inventoryStatus;
 
         sprite = new MySprite() {
             Type = SpriteType.TEXT,
             Data = boxText,
             Position = position,
-            RotationOrScale = 0.75f,
+            RotationOrScale = 0.5f,
             Color = Color.DarkGray,
             Alignment = TextAlignment.LEFT,
             FontId = "White"
@@ -720,7 +732,7 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
             sprite.Color = Color.White;
         }
         frame.Add(sprite);
-        position += new Vector2(112, 0);
+        position += new Vector2(80, 0);
     }
 
     position = new Vector2(10, 80);

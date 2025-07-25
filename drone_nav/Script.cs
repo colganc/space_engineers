@@ -198,6 +198,50 @@ public void setDownThrustersThrustOverride (float thrustInNewtons) {
     }
 }
 
+public void setForwardThrustersThrustOverride (float thrustInNewtons) {
+    List<IMyThrust> thrusters = new List<IMyThrust>();
+    GridTerminalSystem.GetBlocksOfType<IMyThrust>(thrusters);
+    foreach (IMyThrust thruster in thrusters) {
+        if (thruster.CustomData != droneName || thruster.GridThrustDirection != Vector3I.Backward) {
+            continue;
+        }
+        thruster.ThrustOverride = thrustInNewtons;
+    }
+}
+
+public void setBackwardThrustersThrustOverride (float thrustInNewtons) {
+    List<IMyThrust> thrusters = new List<IMyThrust>();
+    GridTerminalSystem.GetBlocksOfType<IMyThrust>(thrusters);
+    foreach (IMyThrust thruster in thrusters) {
+        if (thruster.CustomData != droneName || thruster.GridThrustDirection != Vector3I.Forward) {
+            continue;
+        }
+        thruster.ThrustOverride = thrustInNewtons;
+    }
+}
+
+public void setLeftThrustersThrustOverride (float thrustInNewtons) {
+    List<IMyThrust> thrusters = new List<IMyThrust>();
+    GridTerminalSystem.GetBlocksOfType<IMyThrust>(thrusters);
+    foreach (IMyThrust thruster in thrusters) {
+        if (thruster.CustomData != droneName || thruster.GridThrustDirection != Vector3I.Right) {
+            continue;
+        }
+        thruster.ThrustOverride = thrustInNewtons;
+    }
+}
+
+public void setRightThrustersThrustOverride (float thrustInNewtons) {
+    List<IMyThrust> thrusters = new List<IMyThrust>();
+    GridTerminalSystem.GetBlocksOfType<IMyThrust>(thrusters);
+    foreach (IMyThrust thruster in thrusters) {
+        if (thruster.CustomData != droneName || thruster.GridThrustDirection != Vector3I.Left) {
+            continue;
+        }
+        thruster.ThrustOverride = thrustInNewtons;
+    }
+}
+
 public void setGyroscopeOverride (bool gyroOverride) {
     List<IMyGyro> gyros = new List<IMyGyro>();
     GridTerminalSystem.GetBlocksOfType<IMyGyro>(gyros);
@@ -376,6 +420,7 @@ public void setActionDock(string value) {
     setGyroscopeOverride(true);
     setOrientation(value);
     setDynamicSensorForDocking();
+    dockingPosition = new Vector3D(Convert.ToDouble(value.Split(',')[6]), Convert.ToDouble(value.Split(',')[7]), Convert.ToDouble(value.Split(',')[8]));
 }
 
 public void setActionUndock(string value) {
@@ -704,10 +749,63 @@ public void Main(string argument, UpdateType updateSource) {
                 }
             }
         }
-        else if (currentAction == "DK"
-            && remoteControls[c].GetShipVelocities().LinearVelocity.Length() < safeDockVelocity
-            && downSensorDynamicDetections[downSensorDynamicDetections.Length - 4] == false) {
-            setDownThrustersThrustOverride(1);
+        else if (currentAction == "DK") {
+            if (remoteControls[c].GetShipVelocities().LinearVelocity.Length() < safeDockVelocity
+                && downSensorDynamicDetections[downSensorDynamicDetections.Length - 4] == false) {
+                setDownThrustersThrustOverride(1);
+            }
+
+            if (remoteControls[c].GetShipVelocities().LinearVelocity.Length() >= safeDockVelocity
+                || downSensorDynamicDetections[downSensorDynamicDetections.Length - 4] == true) {
+                setDownThrustersThrustOverride(0);
+                setForwardThrustersThrustOverride(0);
+                setBackwardThrustersThrustOverride(0);
+                setRightThrustersThrustOverride(0);
+                setLeftThrustersThrustOverride(0);
+            }
+
+            float baseAdjustment = 50000;
+            float safeDockVelocityVh = .1f;
+            float metersOffCenter = .075f;
+            Vector3D linearVelocity = remoteControls[c].GetShipVelocities().LinearVelocity;
+            Vector3D dockingDifference = dockingPosition - remoteControls[c].GetPosition();
+            Vector3D bodyPosition = Vector3D.TransformNormal(dockingDifference, MatrixD.Transpose(remoteControls[c].WorldMatrix));
+            float adjustment = 0;
+            if (bodyPosition.X > metersOffCenter && linearVelocity.X > -safeDockVelocityVh) {
+                adjustment = (float)Math.Sqrt(bodyPosition.X) * baseAdjustment;
+                setRightThrustersThrustOverride(adjustment);
+                setLeftThrustersThrustOverride(0);
+                Echo("go right @" + adjustment.ToString());
+            }
+            else if (bodyPosition.X < -metersOffCenter && linearVelocity.X < safeDockVelocityVh) {
+                adjustment = (float)Math.Sqrt(Math.Abs(bodyPosition.X)) * baseAdjustment;
+                setRightThrustersThrustOverride(0);
+                setLeftThrustersThrustOverride(adjustment);
+                Echo("go left @" + adjustment.ToString());
+            }
+            else { // if (bodyPosition.X <= .1f && bodyPosition.X >= -.1f) {
+                Echo("centered lr");
+                setRightThrustersThrustOverride(0);
+                setLeftThrustersThrustOverride(0);
+            }
+
+            if (bodyPosition.Z > metersOffCenter && linearVelocity.Z > -safeDockVelocityVh) {
+                adjustment = (float)Math.Sqrt(bodyPosition.Z) * baseAdjustment;
+                Echo("go backward @" + adjustment.ToString());
+                setForwardThrustersThrustOverride(0);
+                setBackwardThrustersThrustOverride(adjustment);
+            }
+            else if (bodyPosition.Z < -metersOffCenter && linearVelocity.Z > safeDockVelocityVh) {
+                adjustment = (float)Math.Sqrt(Math.Abs(bodyPosition.Z)) * baseAdjustment;
+                Echo("go forward @" + adjustment.ToString());
+                setForwardThrustersThrustOverride(adjustment);
+                setBackwardThrustersThrustOverride(0);
+            }
+            else { // if (bodyPosition.Z <= .1f && bodyPosition.Z >= -.1f) {
+                Echo("centered fb");
+                setForwardThrustersThrustOverride(0);
+                setBackwardThrustersThrustOverride(0);
+            }
         }
         else if (currentAction == "WP" && remoteControls[c].IsAutoPilotEnabled == false) {
             currentAction = "";
@@ -719,6 +817,10 @@ public void Main(string argument, UpdateType updateSource) {
         }
         else {
             setDownThrustersThrustOverride(0);
+            setForwardThrustersThrustOverride(0);
+            setBackwardThrustersThrustOverride(0);
+            setLeftThrustersThrustOverride(0);
+            setRightThrustersThrustOverride(0);
             disableUpThrustersThrustOverride();
         }
         shipMaxVelocityStatus = remoteControls[c].SpeedLimit.ToString();
@@ -799,7 +901,7 @@ public void Main(string argument, UpdateType updateSource) {
     message += "," + waypointPosition.X.ToString();
     message += "," + waypointPosition.Y.ToString();
     message += "," + waypointPosition.Z.ToString();
-    Echo("Outbound Message - " + messageToDroneControllerTag);
-    Echo(message);
+    // Echo("Outbound Message - " + messageToDroneControllerTag);
+    // Echo(message);
     IGC.SendBroadcastMessage(messageToDroneControllerTag, message, TransmissionDistance.AntennaRelay);
 }
