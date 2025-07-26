@@ -680,7 +680,7 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
             frame.Add(sprite);
         }
 
-        if (drone.actionStatus == "WP" && drone.droneName == selectedDrone) {
+        if (drone.actionStatus == "WP") { // && drone.droneName == selectedDrone) {
             Vector3D waypointPosition = new Vector3D(Convert.ToDouble(drone.waypointX), Convert.ToDouble(drone.waypointY), Convert.ToDouble(drone.waypointZ));
             Vector2 waypointMapPosition = getMapPosition(waypointPosition, metersPerPixel, mapRatio, viewport);
             Vector2 halfMapPosition = Vector2.Lerp(droneMapPosition, waypointMapPosition, .25f);

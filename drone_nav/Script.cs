@@ -754,12 +754,12 @@ public void Main(string argument, UpdateType updateSource) {
         }
         else if (currentAction == "DK") {
             if (remoteControls[c].GetShipVelocities().LinearVelocity.Length() < safeDockVelocity
-                && downSensorDynamicDetections[downSensorDynamicDetections.Length - 4] == false) {
+                && downSensorDynamicDetections[downSensorDynamicDetections.Length - 3] == false) {
                 setDownThrustersThrustOverride(1);
             }
 
             if (remoteControls[c].GetShipVelocities().LinearVelocity.Length() >= safeDockVelocity
-                || downSensorDynamicDetections[downSensorDynamicDetections.Length - 4] == true) {
+                || downSensorDynamicDetections[downSensorDynamicDetections.Length - 3] == true) {
                 setDownThrustersThrustOverride(0);
             }
 
