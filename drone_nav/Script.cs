@@ -486,8 +486,9 @@ public void processActionRequest (string message) {
     }
 
     if (action == "disable_autopilot") {
-        currentAction = "NA";
+        currentAction = "";
         setRemoteControlsAutoPilotEnabled(false);
+        setGyroscopeOverride(true);
     }
 
     if (action == "mine") {
@@ -762,7 +763,7 @@ public void Main(string argument, UpdateType updateSource) {
                 setDownThrustersThrustOverride(0);
             }
 
-            float adjustment = remoteControls[c].CalculateShipMass().TotalMass * 1.1;
+            float adjustment = remoteControls[c].CalculateShipMass().TotalMass * 1.1f;
             Vector3D linearVelocity = Vector3D.TransformNormal(remoteControls[c].GetShipVelocities().LinearVelocity, MatrixD.Transpose(remoteControls[c].WorldMatrix));
             Vector3D dockingDifference = dockingPosition - remoteControls[c].GetPosition();
             Vector3D bodyPosition = Vector3D.TransformNormal(dockingDifference, MatrixD.Transpose(remoteControls[c].WorldMatrix));

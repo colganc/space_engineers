@@ -812,7 +812,7 @@ public void guiScreen (IMyTextPanel display, List<droneTelemetry> drones, List<d
         }
     }
 
-    List<string> commands = new List<string>(new[] { "Hold", "Clear Seq", "Undock", "Mine", "Ant Rng" });
+    List<string> commands = new List<string>(new[] { "Hold", "Undock", "Mine", "Ant Rng" });
     foreach (IMyTextPanel commandDisplay in displays) {
         if (commandDisplay.CustomData != "action_sequence") {
             continue;
@@ -958,8 +958,9 @@ public void Main(string argument, UpdateType updateSource)
     }
 
     if (command.name == "select_option") {
-        if (selectedOption == "Clear Seq") {
+        if (selectedOption == "Hold") {
             droneStatusList = clearCommandSequence(selectedDrone, droneStatusList);
+            messages.Enqueue(new droneMessage(selectedDrone, "disable_autopilot"));
         }
         else if (selectedOption == "Undock") {
             messages.Enqueue(new droneMessage(selectedDrone, getUndockMessage(displays)));

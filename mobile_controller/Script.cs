@@ -105,6 +105,15 @@ public void Main(string argument, UpdateType updateSource) {
         displayText += "\n    " + assembler.DisplayNameText + "    Producing: " + assembler.IsProducing.ToString();
     }
 
+    List<IMyGasGenerator> gasGenerators = new List<IMyGasGenerator>();
+    GridTerminalSystem.GetBlocksOfType<IMyGasGenerator>(gasGenerators);
+    foreach (IMyGasGenerator gasGenerator in gasGenerators) {
+        if (gasGenerator.CustomData != Me.CustomData) {
+            continue;
+        }
+        displayText += "\n    " + gasGenerator.DisplayNameText + "    Producing: " + gasGenerator.IsProducing.ToString();
+    }
+
     float maxThrustUp = 0;
     float maxThrustDown = 0;
     float maxThrustForward = 0;
