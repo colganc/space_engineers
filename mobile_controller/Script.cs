@@ -151,6 +151,7 @@ public void Main(string argument, UpdateType updateSource) {
     displayText += "\n    Left Max: " + (maxThrustLeft / 1000).ToString() + " kn";
     displayText += "\n    Right Max: " + (maxThrustRight / 1000).ToString() + " kn";
 
+
     List<IMyTextPanel> displays = new List<IMyTextPanel>();
     GridTerminalSystem.GetBlocksOfType<IMyTextPanel>(displays);
     foreach (IMyTextPanel display in displays) {

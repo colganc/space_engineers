@@ -17,6 +17,8 @@ Vector3D miningPosition;
 float safeUpPercentage = .0001f;
 int safeUndockVelocity = 4;
 int safeDockVelocity = 2;
+double safeDockVelocityVh = .2;
+double metersOffCenter = .05;
 
 public Program() {
     Runtime.UpdateFrequency = UpdateFrequency.Update10;
@@ -758,51 +760,34 @@ public void Main(string argument, UpdateType updateSource) {
             if (remoteControls[c].GetShipVelocities().LinearVelocity.Length() >= safeDockVelocity
                 || downSensorDynamicDetections[downSensorDynamicDetections.Length - 4] == true) {
                 setDownThrustersThrustOverride(0);
-                setForwardThrustersThrustOverride(0);
-                setBackwardThrustersThrustOverride(0);
-                setRightThrustersThrustOverride(0);
-                setLeftThrustersThrustOverride(0);
             }
 
-            float baseAdjustment = 50000;
-            float safeDockVelocityVh = .1f;
-            float metersOffCenter = .075f;
-            Vector3D linearVelocity = remoteControls[c].GetShipVelocities().LinearVelocity;
+            float adjustment = remoteControls[c].CalculateShipMass().TotalMass * 1.1;
+            Vector3D linearVelocity = Vector3D.TransformNormal(remoteControls[c].GetShipVelocities().LinearVelocity, MatrixD.Transpose(remoteControls[c].WorldMatrix));
             Vector3D dockingDifference = dockingPosition - remoteControls[c].GetPosition();
             Vector3D bodyPosition = Vector3D.TransformNormal(dockingDifference, MatrixD.Transpose(remoteControls[c].WorldMatrix));
-            float adjustment = 0;
-            if (bodyPosition.X > metersOffCenter && linearVelocity.X > -safeDockVelocityVh) {
-                adjustment = (float)Math.Sqrt(bodyPosition.X) * baseAdjustment;
+            if (bodyPosition.X > metersOffCenter && linearVelocity.X < safeDockVelocityVh) {
                 setRightThrustersThrustOverride(adjustment);
                 setLeftThrustersThrustOverride(0);
-                Echo("go right @" + adjustment.ToString());
             }
-            else if (bodyPosition.X < -metersOffCenter && linearVelocity.X < safeDockVelocityVh) {
-                adjustment = (float)Math.Sqrt(Math.Abs(bodyPosition.X)) * baseAdjustment;
+            else if (bodyPosition.X < -metersOffCenter && linearVelocity.X > -safeDockVelocityVh) {
                 setRightThrustersThrustOverride(0);
                 setLeftThrustersThrustOverride(adjustment);
-                Echo("go left @" + adjustment.ToString());
             }
-            else { // if (bodyPosition.X <= .1f && bodyPosition.X >= -.1f) {
-                Echo("centered lr");
+            else {
                 setRightThrustersThrustOverride(0);
                 setLeftThrustersThrustOverride(0);
             }
 
-            if (bodyPosition.Z > metersOffCenter && linearVelocity.Z > -safeDockVelocityVh) {
-                adjustment = (float)Math.Sqrt(bodyPosition.Z) * baseAdjustment;
-                Echo("go backward @" + adjustment.ToString());
+            if (bodyPosition.Z > metersOffCenter && linearVelocity.Z < safeDockVelocityVh) {
                 setForwardThrustersThrustOverride(0);
                 setBackwardThrustersThrustOverride(adjustment);
             }
-            else if (bodyPosition.Z < -metersOffCenter && linearVelocity.Z > safeDockVelocityVh) {
-                adjustment = (float)Math.Sqrt(Math.Abs(bodyPosition.Z)) * baseAdjustment;
-                Echo("go forward @" + adjustment.ToString());
+            else if (bodyPosition.Z < -metersOffCenter && linearVelocity.Z > -safeDockVelocityVh) {
                 setForwardThrustersThrustOverride(adjustment);
                 setBackwardThrustersThrustOverride(0);
             }
-            else { // if (bodyPosition.Z <= .1f && bodyPosition.Z >= -.1f) {
-                Echo("centered fb");
+            else {
                 setForwardThrustersThrustOverride(0);
                 setBackwardThrustersThrustOverride(0);
             }
