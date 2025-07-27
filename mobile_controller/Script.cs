@@ -1,3 +1,13 @@
+bool requestedStateHangarClosed = false;
+int ticksBeforeDoorsClose = 60 * 3;
+
+public struct doorStatus {
+    public string name { get; set; }
+    public int ticksOpen { get; set; }
+}
+List<doorStatus> doorStatuses = new List<doorStatus>();
+
+
 public Program()
 {
     // The constructor, called only once every session and
@@ -27,10 +37,93 @@ public void Save()
 public struct blockStatus {
     public string name { get; set; }
     public float mass { get; set; }
-    //public float
 }
 
 public void Main(string argument, UpdateType updateSource) {
+
+    if (argument == "change_state_hangar") {
+        requestedStateHangarClosed = !requestedStateHangarClosed;
+    }
+
+    List<IMyAirtightSlideDoor> doors = new List<IMyAirtightSlideDoor>();
+    GridTerminalSystem.GetBlocksOfType<IMyAirtightSlideDoor>(doors);
+    foreach (IMyAirtightSlideDoor door in doors) {
+        if (door.CustomData != Me.CustomData) {
+            continue;
+        }
+
+        bool foundDoorStatus = false;
+        doorStatus doorStatus = new doorStatus();
+        for (int i = 0; i < doorStatuses.Count; i++) {
+            doorStatus = doorStatuses[i];
+            if (doorStatus.name == door.DisplayNameText) {
+                foundDoorStatus = true;
+                if (door.OpenRatio < 1) {
+                    doorStatus.ticksOpen = 0;
+                }
+                else {
+                    doorStatus.ticksOpen += 100;
+                    if (doorStatus.ticksOpen >= ticksBeforeDoorsClose) {
+                        door.CloseDoor();
+                    }
+                }
+                doorStatuses[i] = doorStatus;
+            }
+        }
+        if (!foundDoorStatus) {
+            doorStatus newDoorStatus = new doorStatus();
+            newDoorStatus.name = door.DisplayNameText;
+            doorStatuses.Add(newDoorStatus);
+        }
+    }
+
+    string hangarState = "Unknown";
+    float openedHangar = 0;
+    float closedHangar = -90;
+    float bottomHingeAngle = 0;
+    float topHingeAngle = 0;
+    // bool foundHangar = false;
+    List<IMyMotorAdvancedStator> hinges = new List<IMyMotorAdvancedStator>();
+    GridTerminalSystem.GetBlocksOfType<IMyMotorAdvancedStator>(hinges);
+    foreach (IMyMotorAdvancedStator hinge in hinges) {
+        if (hinge.CustomData == Me.CustomData + "_hangar_bottom") {
+            bottomHingeAngle = hinge.Angle;
+            // foundHangar = true;
+        }
+
+        if (hinge.CustomData == Me.CustomData + "_hangar_top") {
+            topHingeAngle = hinge.Angle;
+            // foundHangar = true;
+        }
+    }
+
+    if (bottomHingeAngle == closedHangar && topHingeAngle == closedHangar) {
+        hangarState = "Closed";
+    }
+    else if (bottomHingeAngle == openedHangar && topHingeAngle == openedHangar) {
+        hangarState = "Opened";
+    }
+    // else (foundHangar) {
+    //     hangarState = "Transitioning";
+    // }
+
+    foreach (IMyMotorAdvancedStator hinge in hinges) {
+        if (requestedStateHangarClosed && hinge.CustomData == Me.CustomData + "_hangar_bottom" && topHingeAngle == openedHangar) {
+            hinge.RotateToAngle(MyRotationDirection.AUTO, closedHangar, 1);
+        }
+
+        if (requestedStateHangarClosed && hinge.CustomData == Me.CustomData + "_hangar_top" && bottomHingeAngle == closedHangar) {
+            hinge.RotateToAngle(MyRotationDirection.AUTO, closedHangar, 1);
+        }
+
+        if (!requestedStateHangarClosed && hinge.CustomData == Me.CustomData + "_hangar_bottom" && topHingeAngle == openedHangar) {
+            hinge.RotateToAngle(MyRotationDirection.AUTO, openedHangar, 1);
+        }
+
+        if (!requestedStateHangarClosed && hinge.CustomData == Me.CustomData + "_hangar_top" && bottomHingeAngle == closedHangar) {
+            hinge.RotateToAngle(MyRotationDirection.AUTO, openedHangar, 1);
+        }
+    }
 
     string displayText = "";
 
@@ -99,6 +192,8 @@ public void Main(string argument, UpdateType updateSource) {
     float intermediate = (float)currentVolume / (float)maxVolume;
     string cargoContainersPercent = Math.Round(intermediate * 100, 0, MidpointRounding.AwayFromZero).ToString();
     displayText += "\nContainer Capacity: " + cargoContainersPercent + "%    " + (currentVolume / 1000000).ToString() + "/" + (maxVolume / 1000000).ToString() + " tonnes";
+
+    displayText += "\nHangar Doors: " + hangarState + " (" + bottomHingeAngle.ToString() + " & " + topHingeAngle.ToString() + ")";
 
     displayText += "\nFactory...";
     List<IMyRefinery> refineries = new List<IMyRefinery>();
