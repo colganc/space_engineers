@@ -69,6 +69,20 @@ public void Main(string argument, UpdateType updateSource) {
     string storedPowerPercent = Math.Round((currentStoredPower / maxStoredPower) * 100, 0, MidpointRounding.AwayFromZero).ToString();
     displayText += "\nEnergy: " + storedPowerPercent + "%    " + Math.Round(currentStoredPower, 2).ToString() + "/" + maxStoredPower.ToString() + " MWh";
 
+    int oxygenTankCount = 0;
+    double filledRatio = 0;
+    List<IMyGasTank> tanks = new List<IMyGasTank>();
+    GridTerminalSystem.GetBlocksOfType<IMyGasTank>(tanks);
+    foreach (IMyGasTank tank in tanks) {
+        if (tank.CustomData != Me.CustomData) {
+            continue;
+        }
+        oxygenTankCount++;
+        filledRatio += tank.FilledRatio;
+    }
+    double overallRatio = Math.Round(filledRatio / oxygenTankCount * 100, 3);
+    displayText += "\nOxygen Tanks: " + overallRatio.ToString() + "%";
+
     long currentVolume = 0;
     long maxVolume = 0;
     List<IMyCargoContainer> cargoContainers = new List<IMyCargoContainer>();
