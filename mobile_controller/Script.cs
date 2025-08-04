@@ -1,5 +1,8 @@
 bool requestedStateHangarClosed = false;
+bool requestedStateArmorClosed = false;
 int ticksBeforeDoorsClose = 60 * 3;
+float hangarDoorSpeed = 3;
+float armorSpeed = 3;
 
 public struct doorStatus {
     public string name { get; set; }
@@ -45,6 +48,10 @@ public void Main(string argument, UpdateType updateSource) {
         requestedStateHangarClosed = !requestedStateHangarClosed;
     }
 
+    if (argument == "change_state_armor") {
+        requestedStateArmorClosed = !requestedStateArmorClosed;
+    }
+
     List<IMyAirtightSlideDoor> doors = new List<IMyAirtightSlideDoor>();
     GridTerminalSystem.GetBlocksOfType<IMyAirtightSlideDoor>(doors);
     foreach (IMyAirtightSlideDoor door in doors) {
@@ -79,49 +86,68 @@ public void Main(string argument, UpdateType updateSource) {
 
     string hangarState = "Unknown";
     float openedHangar = 0;
-    float closedHangar = -90;
-    float bottomHingeAngle = 0;
-    float topHingeAngle = 0;
-    // bool foundHangar = false;
+    float closedHangar = -90 * (float)(Math.PI / 180);
+    float bottomHangarHingeAngle = 0;
+    float topHangarHingeAngle = 0;
+
+    string armorState = "Unknown";
+    float openedArmor = 0;
+    float closedArmor = -90 * (float)(Math.PI / 180);
+    float armorHingeAngle = 0;
+
     List<IMyMotorAdvancedStator> hinges = new List<IMyMotorAdvancedStator>();
     GridTerminalSystem.GetBlocksOfType<IMyMotorAdvancedStator>(hinges);
     foreach (IMyMotorAdvancedStator hinge in hinges) {
         if (hinge.CustomData == Me.CustomData + "_hangar_bottom") {
-            bottomHingeAngle = hinge.Angle;
-            // foundHangar = true;
+            bottomHangarHingeAngle = hinge.Angle;
         }
 
         if (hinge.CustomData == Me.CustomData + "_hangar_top") {
-            topHingeAngle = hinge.Angle;
-            // foundHangar = true;
+            topHangarHingeAngle = hinge.Angle;
+        }
+
+        if (hinge.CustomData == Me.CustomData + "_armor") {
+            armorHingeAngle = hinge.Angle;
         }
     }
 
-    if (bottomHingeAngle == closedHangar && topHingeAngle == closedHangar) {
+    if ((int)bottomHangarHingeAngle == (int)closedHangar && (int)topHangarHingeAngle == (int)closedHangar) {
         hangarState = "Closed";
     }
-    else if (bottomHingeAngle == openedHangar && topHingeAngle == openedHangar) {
+    else if ((int)bottomHangarHingeAngle == (int)openedHangar && (int)topHangarHingeAngle == (int)openedHangar) {
         hangarState = "Opened";
     }
-    // else (foundHangar) {
-    //     hangarState = "Transitioning";
-    // }
+
+    if (armorHingeAngle == closedArmor) {
+        armorState = "Closed";
+    }
+    else if (armorHingeAngle == openedArmor) {
+        armorState = "Opened";
+    }
 
     foreach (IMyMotorAdvancedStator hinge in hinges) {
-        if (requestedStateHangarClosed && hinge.CustomData == Me.CustomData + "_hangar_bottom" && topHingeAngle == openedHangar) {
-            hinge.RotateToAngle(MyRotationDirection.AUTO, closedHangar, 1);
+        if (requestedStateHangarClosed && hinge.CustomData == Me.CustomData + "_hangar_bottom" && (int)topHangarHingeAngle == (int)openedHangar) {
+            hinge.RotateToAngle(MyRotationDirection.AUTO, closedHangar * (float)(180 / Math.PI), hangarDoorSpeed);
         }
 
-        if (requestedStateHangarClosed && hinge.CustomData == Me.CustomData + "_hangar_top" && bottomHingeAngle == closedHangar) {
-            hinge.RotateToAngle(MyRotationDirection.AUTO, closedHangar, 1);
+        if (requestedStateHangarClosed && hinge.CustomData == Me.CustomData + "_hangar_top" && (int)bottomHangarHingeAngle == (int)closedHangar) {
+            hinge.RotateToAngle(MyRotationDirection.AUTO, closedHangar * (float)(180 / Math.PI), hangarDoorSpeed);
         }
 
-        if (!requestedStateHangarClosed && hinge.CustomData == Me.CustomData + "_hangar_bottom" && topHingeAngle == openedHangar) {
-            hinge.RotateToAngle(MyRotationDirection.AUTO, openedHangar, 1);
+        if (!requestedStateHangarClosed && hinge.CustomData == Me.CustomData + "_hangar_bottom" && (int)topHangarHingeAngle == (int)openedHangar) {
+            hinge.RotateToAngle(MyRotationDirection.AUTO, openedHangar * (float)(180 / Math.PI), hangarDoorSpeed);
         }
 
-        if (!requestedStateHangarClosed && hinge.CustomData == Me.CustomData + "_hangar_top" && bottomHingeAngle == closedHangar) {
-            hinge.RotateToAngle(MyRotationDirection.AUTO, openedHangar, 1);
+        if (!requestedStateHangarClosed && hinge.CustomData == Me.CustomData + "_hangar_top" && (int)bottomHangarHingeAngle == (int)closedHangar) {
+            hinge.RotateToAngle(MyRotationDirection.AUTO, openedHangar * (float)(180 / Math.PI), hangarDoorSpeed);
+        }
+
+        if (requestedStateArmorClosed && hinge.CustomData == Me.CustomData + "_armor") {
+            hinge.RotateToAngle(MyRotationDirection.AUTO, closedArmor * (float)(180 / Math.PI), armorSpeed);
+        }
+
+        if (!requestedStateArmorClosed && hinge.CustomData == Me.CustomData + "_armor") {
+            hinge.RotateToAngle(MyRotationDirection.AUTO, openedArmor * (float)(180 / Math.PI), armorSpeed);
         }
     }
 
@@ -193,7 +219,8 @@ public void Main(string argument, UpdateType updateSource) {
     string cargoContainersPercent = Math.Round(intermediate * 100, 0, MidpointRounding.AwayFromZero).ToString();
     displayText += "\nContainer Capacity: " + cargoContainersPercent + "%    " + (currentVolume / 1000000).ToString() + "/" + (maxVolume / 1000000).ToString() + " tonnes";
 
-    displayText += "\nHangar Doors: " + hangarState + " (" + bottomHingeAngle.ToString() + " & " + topHingeAngle.ToString() + ")";
+    displayText += "\nHangar Doors: " + hangarState;
+    displayText += "\nArmor: " + armorState;
 
     displayText += "\nFactory...";
     List<IMyRefinery> refineries = new List<IMyRefinery>();
