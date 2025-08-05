@@ -213,6 +213,23 @@ public void Main(string argument, UpdateType updateSource) {
         IMyInventory cargoContainerInventory = cargoContainer.GetInventory();
         currentVolume += cargoContainerInventory.CurrentVolume.RawValue;
         maxVolume += cargoContainerInventory.MaxVolume.RawValue;
+
+        // MyFixedPoint findAmount = new MyFixedPoint();
+        // MyItemType  findItem = new MyItemType();
+        // findItem.
+        // if (cargoContainerInventory.ContainsItems(findAmount, findItem)) {
+        //     Echo("Found it")
+        // };
+
+        // for (int i = 0; i < cargoContainerInventory.ItemCount; i++) {
+        //     MyInventoryItem? item = cargoContainerInventory.GetItemAt(i);
+        //     if (item != null) {
+        //         MyInventoryItem notNullItem = (MyInventoryItem)item;
+        //         Echo(notNullItem.Type.TypeId + " - " + notNullItem.Type.SubtypeId);
+        //     }
+        // }
+        
+
     }
 
     float intermediate = (float)currentVolume / (float)maxVolume;

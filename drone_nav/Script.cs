@@ -544,6 +544,11 @@ public void Main(string argument, UpdateType updateSource) {
 
     Echo(droneName);
 
+    if (droneName == "Default") {
+        setPowerMode(false);
+        return;
+    }
+
     string message = "";
 
     double positionX = 0;
