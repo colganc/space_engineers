@@ -202,6 +202,9 @@ public void Main(string argument, UpdateType updateSource) {
     double overallRatio = Math.Round(filledRatio / oxygenTankCount * 100, 3);
     displayText += "\nOxygen Tanks: " + overallRatio.ToString() + "%";
 
+    int inventorySteelPlates = 0;
+    int inventorySmallTubes = 0;
+
     long currentVolume = 0;
     long maxVolume = 0;
     List<IMyCargoContainer> cargoContainers = new List<IMyCargoContainer>();
@@ -214,22 +217,25 @@ public void Main(string argument, UpdateType updateSource) {
         currentVolume += cargoContainerInventory.CurrentVolume.RawValue;
         maxVolume += cargoContainerInventory.MaxVolume.RawValue;
 
-        // MyFixedPoint findAmount = new MyFixedPoint();
-        // MyItemType  findItem = new MyItemType();
-        // findItem.
-        // if (cargoContainerInventory.ContainsItems(findAmount, findItem)) {
-        //     Echo("Found it")
-        // };
-
-        // for (int i = 0; i < cargoContainerInventory.ItemCount; i++) {
-        //     MyInventoryItem? item = cargoContainerInventory.GetItemAt(i);
-        //     if (item != null) {
-        //         MyInventoryItem notNullItem = (MyInventoryItem)item;
-        //         Echo(notNullItem.Type.TypeId + " - " + notNullItem.Type.SubtypeId);
-        //     }
-        // }
-        
-
+        for (int i = 0; i < cargoContainerInventory.ItemCount; i++) {
+            MyInventoryItem? item = cargoContainerInventory.GetItemAt(i);
+            if (item != null) {
+                MyInventoryItem notNullItem = (MyInventoryItem)item;
+                //Echo(notNullItem.Type.TypeId + " - " + notNullItem.Type.SubtypeId);
+                if (notNullItem.Type.TypeId == "MyObjectBuilder_Component") {
+                    Echo(notNullItem.Type.SubtypeId);
+                    // if (notNullItem.Type.SubtypeId == "SteelPlate") {
+                    //     Echo(notNullItem.Amount.ToIntSafe().ToString());
+                    // }
+                }
+                if (notNullItem.Type.TypeId == "MyObjectBuilder_Component" && notNullItem.Type.SubtypeId == "SteelPlate") {
+                    inventorySteelPlates += notNullItem.Amount.ToIntSafe();
+                }
+                if (notNullItem.Type.TypeId == "MyObjectBuilder_Component" && notNullItem.Type.SubtypeId == "SmallTube") {
+                    inventorySmallTubes += notNullItem.Amount.ToIntSafe();
+                }
+            }
+        }
     }
 
     float intermediate = (float)currentVolume / (float)maxVolume;
@@ -256,6 +262,37 @@ public void Main(string argument, UpdateType updateSource) {
             continue;
         }
         displayText += "\n    " + assembler.DisplayNameText + "    Producing: " + assembler.IsProducing.ToString();
+
+        foreach (IMyCargoContainer cargoContainer in cargoContainers) {
+            if (cargoContainer.CustomData != Me.CustomData) {
+                continue;
+            }
+            IMyInventory cargoContainerInventory = cargoContainer.GetInventory();
+            if (cargoContainerInventory.VolumeFillFactor < .8) {
+                List<MyInventoryItem> items = new List<MyInventoryItem>();
+                assembler.OutputInventory.GetItems(items);
+                foreach (MyInventoryItem item in items) {
+                    assembler.OutputInventory.TransferItemTo(cargoContainerInventory, item);
+                }
+            }
+        }
+
+        if (assembler.IsQueueEmpty) {
+            bool foundNeed = false;
+            MyDefinitionId blueprint = new MyDefinitionId();
+            double amount = 10;
+            if (inventorySteelPlates < 500) {
+                blueprint = MyDefinitionId.Parse("MyObjectBuilder_BlueprintDefinition/SteelPlate");
+                foundNeed = true;
+            }
+            if (inventorySmallTubes < 500) {
+                blueprint = MyDefinitionId.Parse("MyObjectBuilder_BlueprintDefinition/SmallTube");
+                foundNeed = true;
+            }
+            if (foundNeed) {
+                assembler.AddQueueItem(blueprint, amount);
+            }
+        }
     }
 
     List<IMyGasGenerator> gasGenerators = new List<IMyGasGenerator>();
@@ -342,4 +379,16 @@ public void Main(string argument, UpdateType updateSource) {
         frame.Dispose();
     }
 
+    foreach (IMyTextPanel display in displays) {
+        if (display.CustomData != Me.CustomData + "_inventory_requests") {
+            continue;
+        }
+
+        if (display.GetText() == "") {
+            string message;
+            message += "SteelPlate 0"
+            message += "SmallTube 0"
+            display.WriteText(message);
+        }
+    }
 }
