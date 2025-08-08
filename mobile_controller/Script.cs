@@ -3,6 +3,8 @@ bool requestedStateArmorClosed = false;
 int ticksBeforeDoorsClose = 60 * 3;
 float hangarDoorSpeed = 3;
 float armorSpeed = 3;
+Dictionary<string, int> inventoryRequests = new Dictionary<string, int>();
+Dictionary<string, string> componentToBlueprint = new Dictionary<string, string>();
 
 public struct doorStatus {
     public string name { get; set; }
@@ -11,19 +13,13 @@ public struct doorStatus {
 List<doorStatus> doorStatuses = new List<doorStatus>();
 
 
-public Program()
-{
-    // The constructor, called only once every session and
-    // always before any other method is called. Use it to
-    // initialize your script. 
-    //     
-    // The constructor is optional and can be removed if not
-    // needed.
-    // 
-    // It's recommended to set RuntimeInfo.UpdateFrequency 
-    // here, which will allow your script to run itself without a 
-    // timer block.
-
+public Program() {
+    componentToBlueprint.Add("Girder", "GirderComponent");
+    componentToBlueprint.Add("Computer", "ComputerComponent");
+    componentToBlueprint.Add("Motor", "MotorComponent");
+    componentToBlueprint.Add("Construction", "ConstructionComponent");
+    componentToBlueprint.Add("RadioCommunication", "RadioCommunicationComponent");
+    componentToBlueprint.Add("Detector", "DetectorComponent");
     Runtime.UpdateFrequency = UpdateFrequency.Update100;
 }
 
@@ -202,37 +198,47 @@ public void Main(string argument, UpdateType updateSource) {
     double overallRatio = Math.Round(filledRatio / oxygenTankCount * 100, 3);
     displayText += "\nOxygen Tanks: " + overallRatio.ToString() + "%";
 
-    int inventorySteelPlates = 0;
-    int inventorySmallTubes = 0;
+    Dictionary<string, int> inventoryActuals = new Dictionary<string, int>();
 
     long currentVolume = 0;
     long maxVolume = 0;
     List<IMyCargoContainer> cargoContainers = new List<IMyCargoContainer>();
     GridTerminalSystem.GetBlocksOfType<IMyCargoContainer>(cargoContainers);
     foreach (IMyCargoContainer cargoContainer in cargoContainers) {
-        if (cargoContainer.CustomData != Me.CustomData) {
-            continue;
-        }
-        IMyInventory cargoContainerInventory = cargoContainer.GetInventory();
-        currentVolume += cargoContainerInventory.CurrentVolume.RawValue;
-        maxVolume += cargoContainerInventory.MaxVolume.RawValue;
+        if (cargoContainer.CustomData == Me.CustomData) {
+            IMyInventory cargoContainerInventory = cargoContainer.GetInventory();
+            currentVolume += cargoContainerInventory.CurrentVolume.RawValue;
+            maxVolume += cargoContainerInventory.MaxVolume.RawValue;
 
-        for (int i = 0; i < cargoContainerInventory.ItemCount; i++) {
-            MyInventoryItem? item = cargoContainerInventory.GetItemAt(i);
-            if (item != null) {
-                MyInventoryItem notNullItem = (MyInventoryItem)item;
-                //Echo(notNullItem.Type.TypeId + " - " + notNullItem.Type.SubtypeId);
-                if (notNullItem.Type.TypeId == "MyObjectBuilder_Component") {
-                    Echo(notNullItem.Type.SubtypeId);
-                    // if (notNullItem.Type.SubtypeId == "SteelPlate") {
-                    //     Echo(notNullItem.Amount.ToIntSafe().ToString());
+            for (int i = 0; i < cargoContainerInventory.ItemCount; i++) {
+                MyInventoryItem? item = cargoContainerInventory.GetItemAt(i);
+                if (item != null) {
+                    MyInventoryItem notNullItem = (MyInventoryItem)item;
+                    // if (notNullItem.Type.TypeId != "MyObjectBuilder_Component") {
+                    //     continue;
                     // }
+                    if (inventoryActuals.ContainsKey(notNullItem.Type.SubtypeId)) {
+                        inventoryActuals[notNullItem.Type.SubtypeId] += notNullItem.Amount.ToIntSafe();
+                    }
+                    else {
+                        inventoryActuals.Add(notNullItem.Type.SubtypeId, notNullItem.Amount.ToIntSafe());
+                    }
                 }
-                if (notNullItem.Type.TypeId == "MyObjectBuilder_Component" && notNullItem.Type.SubtypeId == "SteelPlate") {
-                    inventorySteelPlates += notNullItem.Amount.ToIntSafe();
+            }
+        }
+
+        if (cargoContainer.CustomData == Me.CustomData + "_empty") {
+            foreach (IMyCargoContainer destinationCargoContainer in cargoContainers) {
+                if (destinationCargoContainer.CustomData != Me.CustomData) {
+                    continue;
                 }
-                if (notNullItem.Type.TypeId == "MyObjectBuilder_Component" && notNullItem.Type.SubtypeId == "SmallTube") {
-                    inventorySmallTubes += notNullItem.Amount.ToIntSafe();
+                IMyInventory destinationInventory = destinationCargoContainer.GetInventory();
+                if (destinationInventory.VolumeFillFactor < .8) {
+                    List<MyInventoryItem> items = new List<MyInventoryItem>();
+                    cargoContainer.GetInventory().GetItems(items);
+                    foreach (MyInventoryItem item in items) {
+                        cargoContainer.GetInventory().TransferItemTo(destinationInventory, item);
+                    }
                 }
             }
         }
@@ -278,19 +284,25 @@ public void Main(string argument, UpdateType updateSource) {
         }
 
         if (assembler.IsQueueEmpty) {
-            bool foundNeed = false;
             MyDefinitionId blueprint = new MyDefinitionId();
             double amount = 10;
-            if (inventorySteelPlates < 500) {
-                blueprint = MyDefinitionId.Parse("MyObjectBuilder_BlueprintDefinition/SteelPlate");
-                foundNeed = true;
-            }
-            if (inventorySmallTubes < 500) {
-                blueprint = MyDefinitionId.Parse("MyObjectBuilder_BlueprintDefinition/SmallTube");
-                foundNeed = true;
-            }
-            if (foundNeed) {
-                assembler.AddQueueItem(blueprint, amount);
+            foreach (KeyValuePair<string, int> item in inventoryRequests) {
+                if (inventoryActuals.ContainsKey(item.Key) && inventoryActuals[item.Key] < item.Value) {
+                    string blueprintDefinition = item.Key;
+                    if (componentToBlueprint.ContainsKey(item.Key)) {
+                        blueprintDefinition = componentToBlueprint[item.Key];
+                    }
+                    blueprint = MyDefinitionId.Parse("MyObjectBuilder_BlueprintDefinition/" + blueprintDefinition);
+                    assembler.AddQueueItem(blueprint, amount);
+                }
+                if (!inventoryActuals.ContainsKey(item.Key) && item.Value > 0) {
+                    string blueprintDefinition = item.Key;
+                    if (componentToBlueprint.ContainsKey(item.Key)) {
+                        blueprintDefinition = componentToBlueprint[item.Key];
+                    }
+                    blueprint = MyDefinitionId.Parse("MyObjectBuilder_BlueprintDefinition/" + blueprintDefinition);
+                    assembler.AddQueueItem(blueprint, amount);
+                }
             }
         }
     }
@@ -385,10 +397,40 @@ public void Main(string argument, UpdateType updateSource) {
         }
 
         if (display.GetText() == "") {
-            string message;
-            message += "SteelPlate 0"
-            message += "SmallTube 0"
+            string message = "";
+            message += "SteelPlate 0";
+            message += "\nSmallTube 0";
+            message += "\nGirder 0";
             display.WriteText(message);
         }
+
+        foreach (string entry in display.GetText().Split('\n')) {
+            string name = entry.Split(' ')[0];
+            int amount = int.Parse(entry.Split(' ')[1]);
+            if (!inventoryRequests.ContainsKey(name)) {
+                inventoryRequests.Add(name, amount);
+            }
+            else {
+                inventoryRequests[name] = amount;
+            }
+        }
+    }
+
+    foreach (IMyTextPanel display in displays) {
+        if (display.CustomData != Me.CustomData + "_inventory_actuals") {
+            continue;
+        }
+
+        string message = "Name: Amount (Requested)";
+        string[] keys = inventoryActuals.Keys.ToArray();
+        Array.Sort(keys);
+        foreach (string key in keys) {
+            string request = "0";
+            if (inventoryRequests.ContainsKey(key)) {
+                request = inventoryRequests[key].ToString();
+            }
+            message += "\n" + key  + ": " + inventoryActuals[key].ToString() + " (" + request + ")";
+        }
+        display.WriteText(message);
     }
 }
