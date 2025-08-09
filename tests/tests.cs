@@ -1,10 +1,16 @@
-﻿namespace tests;
+﻿using Xunit;
 
-// using osi.Program;
+namespace tests
+{
+    public class extendPistons_should
+    {
+        [Fact]
+        public void extendPistons_should_run()
+        {
+            var osi = new osi.IngameScript();
+            // osi.isInventoryFull();
 
-public class extendPistons_should {
-    [Fact]
-    public void extendPistons_should_run() {
-        var osi = new Program();
+            Assert.False(osi, "Inventory should not be full");
+        }
     }
 }

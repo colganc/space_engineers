@@ -2,8 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netframework48</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
     <IsPackable>false</IsPackable>
 
     <RootNamespace>IngameScript</RootNamespace>
@@ -21,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="Xunit" />
+    <!-- <Using Include="Xunit" /> -->
   </ItemGroup>
 
   <ItemGroup>
